@@ -1,0 +1,12 @@
+[
+{
+  "directory": "/home/nicholas/Thesis_project/build/src",
+  "command": "/usr/bin/c++  -I/home/nicholas/Thesis_project/src/include -isystem /home/nicholas/Thesis_project/installation/include -g -fdiagnostics-show-option -Wall -Wextra -pedantic -Wpedantic -pedantic-errors -Wdouble-promotion -Wswitch-default -Wswitch-enum -Wimplicit-fallthrough -Wuninitialized -Wno-missing-braces -Wno-error=unused-but-set-variable -Wsuggest-override -Wno-error=attributes -Wno-psabi -o CMakeFiles/thesis.dir/src/Thesis.cpp.o -c /home/nicholas/Thesis_project/src/src/Thesis.cpp",
+  "file": "/home/nicholas/Thesis_project/src/src/Thesis.cpp"
+},
+{
+  "directory": "/home/nicholas/Thesis_project/build/applications",
+  "command": "/usr/bin/c++  -I/home/nicholas/Thesis_project/src/include -g -fdiagnostics-show-option -Wall -Wextra -pedantic -Wpedantic -pedantic-errors -Wdouble-promotion -Wswitch-default -Wswitch-enum -Wimplicit-fallthrough -Wuninitialized -Wno-missing-braces -Wno-error=unused-but-set-variable -Wsuggest-override -Wno-error=attributes -Wno-psabi -o CMakeFiles/hello.dir/hello.cpp.o -c /home/nicholas/Thesis_project/applications/hello.cpp",
+  "file": "/home/nicholas/Thesis_project/applications/hello.cpp"
+}
+]

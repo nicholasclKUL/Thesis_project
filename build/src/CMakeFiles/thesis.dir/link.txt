@@ -1,0 +1,2 @@
+/usr/bin/ar qc libthesis.a CMakeFiles/thesis.dir/src/Thesis.cpp.o
+/usr/bin/ranlib libthesis.a
