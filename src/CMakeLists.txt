@@ -1,10 +1,19 @@
 add_library(thesis
-    "src/Thesis.cpp" #example!!
-    "include/Thesis/Thesis.hpp" #example!!
+    "src/Thesis.cpp"
+    "src/para-panoc.cpp"
+    "src/para-alm.cpp"
+    #"src/para-panoc-alm.cpp"
+
+    "include/Thesis/Thesis.hpp"
+    "include/Thesis/para-panoc.hpp"
+    "include/Thesis/para-alm.hpp"
+    "include/Thesis/para-panoc-alm.hpp"
 )
 
 target_link_libraries(thesis PRIVATE Taskflow::Taskflow)
 target_link_libraries(thesis PRIVATE Kokkos::kokkos)
+target_link_libraries(thesis PRIVATE Eigen3::Eigen)
+target_link_libraries(thesis PRIVATE alpaqa::alpaqa)
 
 target_link_libraries(thesis PRIVATE thesis::warnings)
 target_include_directories(thesis PUBLIC

@@ -1,12 +1,22 @@
 [
 {
-  "directory": "/home/nicholas/Thesis_project/build/src",
-  "command": "/usr/bin/c++  -I/home/nicholas/Thesis_project/src/include -isystem /home/nicholas/Thesis_project/installation/include -g -fdiagnostics-show-option -Wall -Wextra -pedantic -Wpedantic -pedantic-errors -Wdouble-promotion -Wswitch-default -Wswitch-enum -Wimplicit-fallthrough -Wuninitialized -Wno-missing-braces -Wno-error=unused-but-set-variable -Wsuggest-override -Wno-error=attributes -Wno-psabi -o CMakeFiles/thesis.dir/src/Thesis.cpp.o -c /home/nicholas/Thesis_project/src/src/Thesis.cpp",
+  "directory": "/home/nicholas/Thesis_project/build",
+  "command": "/usr/bin/g++ -DEIGEN_INITIALIZE_MATRICES_BY_NAN -DEIGEN_RUNTIME_NO_MALLOC -DKOKKOS_DEPENDENCE -I/home/nicholas/Thesis_project/src/include -isystem /home/nicholas/Thesis_project/installation/include -isystem /home/nicholas/Thesis_project/installation/include/eigen3 -g -fopenmp -fdiagnostics-show-option -Wall -Wextra -pedantic -Wpedantic -pedantic-errors -Wdouble-promotion -Wswitch-default -Wswitch-enum -Wimplicit-fallthrough -Wuninitialized -Wno-missing-braces -Wno-error=unused-but-set-variable -Wsuggest-override -Wno-error=attributes -Wno-psabi -std=gnu++20 -o src/CMakeFiles/thesis.dir/src/Thesis.cpp.o -c /home/nicholas/Thesis_project/src/src/Thesis.cpp",
   "file": "/home/nicholas/Thesis_project/src/src/Thesis.cpp"
 },
 {
-  "directory": "/home/nicholas/Thesis_project/build/applications",
-  "command": "/usr/bin/c++  -I/home/nicholas/Thesis_project/src/include -g -fdiagnostics-show-option -Wall -Wextra -pedantic -Wpedantic -pedantic-errors -Wdouble-promotion -Wswitch-default -Wswitch-enum -Wimplicit-fallthrough -Wuninitialized -Wno-missing-braces -Wno-error=unused-but-set-variable -Wsuggest-override -Wno-error=attributes -Wno-psabi -o CMakeFiles/hello.dir/hello.cpp.o -c /home/nicholas/Thesis_project/applications/hello.cpp",
-  "file": "/home/nicholas/Thesis_project/applications/hello.cpp"
+  "directory": "/home/nicholas/Thesis_project/build",
+  "command": "/usr/bin/g++ -DEIGEN_INITIALIZE_MATRICES_BY_NAN -DEIGEN_RUNTIME_NO_MALLOC -DKOKKOS_DEPENDENCE -I/home/nicholas/Thesis_project/src/include -isystem /home/nicholas/Thesis_project/installation/include -isystem /home/nicholas/Thesis_project/installation/include/eigen3 -g -fopenmp -fdiagnostics-show-option -Wall -Wextra -pedantic -Wpedantic -pedantic-errors -Wdouble-promotion -Wswitch-default -Wswitch-enum -Wimplicit-fallthrough -Wuninitialized -Wno-missing-braces -Wno-error=unused-but-set-variable -Wsuggest-override -Wno-error=attributes -Wno-psabi -std=gnu++20 -o src/CMakeFiles/thesis.dir/src/para-panoc.cpp.o -c /home/nicholas/Thesis_project/src/src/para-panoc.cpp",
+  "file": "/home/nicholas/Thesis_project/src/src/para-panoc.cpp"
+},
+{
+  "directory": "/home/nicholas/Thesis_project/build",
+  "command": "/usr/bin/g++ -DEIGEN_INITIALIZE_MATRICES_BY_NAN -DEIGEN_RUNTIME_NO_MALLOC -DKOKKOS_DEPENDENCE -I/home/nicholas/Thesis_project/src/include -isystem /home/nicholas/Thesis_project/installation/include -isystem /home/nicholas/Thesis_project/installation/include/eigen3 -g -fopenmp -fdiagnostics-show-option -Wall -Wextra -pedantic -Wpedantic -pedantic-errors -Wdouble-promotion -Wswitch-default -Wswitch-enum -Wimplicit-fallthrough -Wuninitialized -Wno-missing-braces -Wno-error=unused-but-set-variable -Wsuggest-override -Wno-error=attributes -Wno-psabi -std=gnu++20 -o src/CMakeFiles/thesis.dir/src/para-alm.cpp.o -c /home/nicholas/Thesis_project/src/src/para-alm.cpp",
+  "file": "/home/nicholas/Thesis_project/src/src/para-alm.cpp"
+},
+{
+  "directory": "/home/nicholas/Thesis_project/build",
+  "command": "/usr/bin/g++ -DEIGEN_INITIALIZE_MATRICES_BY_NAN -DEIGEN_RUNTIME_NO_MALLOC -I/home/nicholas/Thesis_project/src/include -isystem /home/nicholas/Thesis_project/installation/include -isystem /home/nicholas/Thesis_project/installation/include/eigen3 -g -fdiagnostics-show-option -Wall -Wextra -pedantic -Wpedantic -pedantic-errors -Wdouble-promotion -Wswitch-default -Wswitch-enum -Wimplicit-fallthrough -Wuninitialized -Wno-missing-braces -fopenmp -Wno-error=unused-but-set-variable -Wsuggest-override -Wno-error=attributes -Wno-psabi -std=gnu++20 -o applications/CMakeFiles/test.dir/test.cpp.o -c /home/nicholas/Thesis_project/applications/test.cpp",
+  "file": "/home/nicholas/Thesis_project/applications/test.cpp"
 }
 ]

@@ -1,4 +1,7 @@
-add_executable(hello #example!!
-    "hello.cpp" #example!!
+add_executable(test #example!!
+    "test.cpp" #example!!
 )
-target_link_libraries(hello PUBLIC thesis PRIVATE thesis::warnings)
+
+find_package(alpaqa REQUIRED)
+target_link_libraries(test PUBLIC thesis PRIVATE thesis::warnings)
+target_link_libraries(test PUBLIC alpaqa::alpaqa alpaqa::warnings)

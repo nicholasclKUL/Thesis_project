@@ -14,6 +14,7 @@ function(add_warnings_target tgt_name warnings_as_errors with_analyzer)
         -Wimplicit-fallthrough
         -Wuninitialized
         -Wno-missing-braces
+        -fopenmp
     )
     # GCC
     set(GCC_WARNINGS

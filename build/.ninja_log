@@ -1,0 +1,10 @@
+# ninja log v5
+5	2669	1676749544952253523	src/CMakeFiles/thesis.dir/src/para-panoc.cpp.o	8973dae3eff5b5f3
+4625	5746	1676654321784004955	applications/test	cb54bdc400820d28
+7	14319	1676653699730528120	src/CMakeFiles/thesis.dir/src/Thesis.cpp.o	21e7f7f95a4b705f
+8	6438	1676647149520052644	applications/CMakeFiles/hello.dir/hello.cpp.o	488adf8b72ca81f2
+5	5053	1676749120312552607	applications/CMakeFiles/test.dir/test.cpp.o	d1aca307e647b67c
+5	2730	1676569522349693005	src/CMakeFiles/thesis.dir/src/ParaPanoc.cpp.o	9bc8afbe21b7db8e
+8	4002	1676653689430451720	src/CMakeFiles/thesis.dir/src/para-alm.cpp.o	9a65493ba7de2cd3
+5	2114	1676645459243658045	src/CMakeFiles/thesis.dir/src/para-panoc-alm.cpp.o	282ae16d90a91db5
+2669	2929	1676749545172257189	src/libthesis.a	30e0cc48d339863c

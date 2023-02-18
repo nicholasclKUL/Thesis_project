@@ -15,6 +15,8 @@ endif()
 
 find_package(Taskflow REQUIRED)
 find_package(Kokkos REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(alpaqa REQUIRED)
 
 add_subdirectory(src)
 add_subdirectory(applications)

@@ -3,6 +3,6 @@
 /home/nicholas/Thesis_project/build/src/CMakeFiles/thesis.dir
 /home/nicholas/Thesis_project/build/src/CMakeFiles/edit_cache.dir
 /home/nicholas/Thesis_project/build/src/CMakeFiles/rebuild_cache.dir
-/home/nicholas/Thesis_project/build/applications/CMakeFiles/hello.dir
+/home/nicholas/Thesis_project/build/applications/CMakeFiles/test.dir
 /home/nicholas/Thesis_project/build/applications/CMakeFiles/edit_cache.dir
 /home/nicholas/Thesis_project/build/applications/CMakeFiles/rebuild_cache.dir
