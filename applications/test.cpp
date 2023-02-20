@@ -1,5 +1,4 @@
 #include <Thesis/para-panoc.hpp>
-//#include <alpaqa/inner/panoc.hpp>
 #include <alpaqa/inner/directions/panoc/lbfgs.hpp>
 #include <alpaqa/problem/type-erased-problem.hpp>
 #include <alpaqa/inner/inner-solve-options.hpp>

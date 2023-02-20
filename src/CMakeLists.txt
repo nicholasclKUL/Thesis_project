@@ -1,13 +1,5 @@
 add_library(thesis
-    "src/Thesis.cpp"
-    "src/para-panoc.cpp"
-    "src/para-alm.cpp"
-    #"src/para-panoc-alm.cpp"
-
-    "include/Thesis/Thesis.hpp"
-    "include/Thesis/para-panoc.hpp"
-    "include/Thesis/para-alm.hpp"
-    "include/Thesis/para-panoc-alm.hpp"
+"para-panoc.cpp"
 )
 
 target_link_libraries(thesis PRIVATE Taskflow::Taskflow)

@@ -9,6 +9,7 @@
 #include <alpaqa/inner/internal/solverstatus.hpp>
 #include <alpaqa/problem/type-erased-problem.hpp>
 #include <alpaqa/util/atomic-stop-signal.hpp>
+#include <alpaqa/config/config.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -252,5 +253,5 @@ ALPAQA_EXPORT_EXTERN_TEMPLATE(struct, ParaPANOCProgressInfo, EigenConfigl);
 #ifdef ALPAQA_WITH_QUAD_PRECISION
 ALPAQA_EXPORT_EXTERN_TEMPLATE(struct, ParaPANOCProgressInfo, EigenConfigq);
 #endif
- 
+
 }

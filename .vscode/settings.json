@@ -2,6 +2,7 @@
     "cmake.configureEnvironment": {
         "CMAKE_PREFIX_PATH": "${workspaceFolder}/installation"
     },
+
     "files.associations": {
         "core": "cpp",
         "any": "cpp",
