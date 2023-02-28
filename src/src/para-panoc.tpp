@@ -1,27 +1,21 @@
 #pragma once
 
-#include <Thesis/para-panoc.hpp>
-#include <Kokkos_Core.hpp>
+//#include <Thesis/para-panoc.hpp>
 
 #include <cassert>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
- 
+
 #include <alpaqa/config/config.hpp>
 #include <alpaqa/implementation/inner/panoc-helpers.tpp>
 #include <alpaqa/implementation/util/print.tpp>
 #include <alpaqa/util/alloc-check.hpp>
-#include <alpaqa/util/quadmath/quadmath-print.hpp> 
- 
+#include <alpaqa/util/quadmath/quadmath-print.hpp>
+
 namespace alpaqa {
- 
-template <class DirectionProviderT>
-std::string ParaPANOCSolver<DirectionProviderT>::get_name() const {
-    return "ParaPANOCSolver<" + std::string(direction.get_name()) + ">";
-}
- 
+
 template <class DirectionProviderT>
 auto ParaPANOCSolver<DirectionProviderT>::operator()(
     /// [in]    Problem description
@@ -36,15 +30,15 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
     crvec Σ,
     /// [out]   Slack variable error @f$ g(x) - \Pi_D(g(x) + \Sigma^{-1} y) @f$
     rvec err_z) -> Stats {
- 
+
     using std::chrono::nanoseconds;
     auto os         = opts.os ? opts.os : this->os;
     auto start_time = std::chrono::steady_clock::now();
     Stats s;
- 
+
     const auto n = problem.get_n();
     const auto m = problem.get_m();
- 
+
     // Represents an iterate in the algorithm, keeping track of some
     // intermediate values and function evaluations.
     struct Iterate {
@@ -60,29 +54,29 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
         real_t pᵀp      = NaN<config_t>; //< Norm squared of p
         real_t grad_ψᵀp = NaN<config_t>; //< Dot product of gradient and p
         real_t hx̂       = NaN<config_t>; //< Non-smooth function value in x̂
- 
+
         // @pre    @ref ψx, @ref hx̂ @ref pᵀp, @ref grad_ψᵀp
         // @return φγ
         real_t fbe() const { return ψx + hx̂ + pᵀp / (2 * γ) + grad_ψᵀp; }
- 
+
         Iterate(length_t n, length_t m) : x(n), x̂(n), grad_ψ(n), p(n), ŷx̂(m) {}
     } iterates[2]{{n, m}, {n, m}};
     Iterate *curr = &iterates[0];
     Iterate *next = &iterates[1];
- 
+
     bool need_grad_ψx̂ = Helpers::stop_crit_requires_grad_ψx̂(params.stop_crit);
     vec grad_ψx̂(n);
     vec work_n(n), work_m(m);
     vec q(n); // (quasi-)Newton step Hₖ pₖ
- 
+
     // Helper functions --------------------------------------------------------
- 
+
     auto qub_violated = [this](const Iterate &i) {
         real_t margin =
             (1 + std::abs(i.ψx)) * params.quadratic_upperbound_tolerance_factor;
         return i.ψx̂ > i.ψx + i.grad_ψᵀp + real_t(0.5) * i.L * i.pᵀp + margin;
     };
- 
+
     auto linesearch_violated = [this](const Iterate &curr,
                                       const Iterate &next) {
         if (params.force_linesearch)
@@ -92,9 +86,9 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
         real_t margin = (1 + std::abs(φγ)) * params.linesearch_tolerance_factor;
         return next.fbe() > φγ - σ * curr.pᵀp + margin;
     };
- 
+
     // Problem functions -------------------------------------------------------
- 
+
     auto eval_ψ_grad_ψ = [&problem, &y, &Σ, &work_n, &work_m](Iterate &i) {
         i.ψx = problem.eval_ψ_grad_ψ(i.x, y, Σ, i.grad_ψ, work_n, work_m);
     };
@@ -109,9 +103,9 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
     auto eval_grad_ψx̂ = [&problem, &work_n](Iterate &i, rvec grad_ψx̂) {
         problem.eval_grad_ψ_from_ŷ(i.x̂, i.ŷx̂, grad_ψx̂, work_n);
     };
- 
+
     // Printing ----------------------------------------------------------------
- 
+
     std::array<char, 64> print_buf;
     auto print_real = [this, &print_buf](real_t x) {
         return float_to_str_vw(print_buf, x, params.print_precision);
@@ -134,14 +128,11 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
     };
 
     // Initialization ----------------------------------------------------------
- 
-    typedef Kokkos::TeamPolicy<Kokkos::OpenMP>::member_type team_handle;
-    int numberOfTeams=4; //number of teams = number of workers/processors/CPU
-    
+
     curr->x = x;
- 
+
     // Estimate Lipschitz constant ---------------------------------------------
- 
+
     // Finite difference approximation of ∇²ψ in starting point
     if (params.Lipschitz.L_0 <= 0) {
         curr->L = Helpers::initial_lipschitz_estimate(
@@ -161,12 +152,12 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
         return s;
     }
     curr->γ = params.Lipschitz.Lγ_factor / curr->L;
- 
+
     // First proximal gradient step --------------------------------------------
- 
+
     eval_prox_grad_step(*curr);
     eval_ψx̂(*curr);
- 
+
     // Quadratic upper bound
     while (curr->L < params.L_max && qub_violated(*curr)) {
         curr->γ /= 2;
@@ -176,39 +167,31 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
     }
 
     // Loop data ---------------------------------------------------------------
- 
-    real_t τ_init = NaN<config_t>;
+
     unsigned k = 0;             // iteration
     real_t τ   = NaN<config_t>; // line search parameter
     // Keep track of how many successive iterations didn't update the iterate
     unsigned no_progress = 0;
 
-
     // Main PANOC loop
     // =========================================================================
- 
+
     ScopedMallocBlocker mb; // Don't allocate in the inner loop
     while (true) {
+
+        // Check stopping criteria ---------------------------------------------
 
         // Calculate ∇ψ(x̂ₖ)
         if (need_grad_ψx̂)
             eval_grad_ψx̂(*curr, grad_ψx̂);
         bool have_grad_ψx̂ = need_grad_ψx̂;
 
-        /*Start parallel_for steps 1-4 */
-        parallel_for("steps1-4",
-                Kokkos::TeamPolicy<Kokkos::OpenMP>(numberOfTeams, Kokkos::AUTO),
-                [=] (const team_handle &team)   
-        {
-
-        // Check stopping criteria ---------------------------------------------
- 
         real_t εₖ = Helpers::calc_error_stop_crit(
             problem, params.stop_crit, curr->p, curr->γ, curr->x, curr->x̂,
             curr->ŷx̂, curr->grad_ψ, grad_ψx̂, work_n, next->p);
- 
+
         // Print progress ------------------------------------------------------
- 
+
         if (params.print_interval != 0 && k % params.print_interval == 0)
             print_progress(k, curr->fbe(), curr->ψx, curr->grad_ψ, curr->pᵀp, q,
                            curr->γ, τ, εₖ);
@@ -234,9 +217,9 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
                          .problem    = problem,
                          .params     = params});
         }
- 
+
         // Return solution -----------------------------------------------------
- 
+
         auto time_elapsed = std::chrono::steady_clock::now() - start_time;
         auto stop_status  = Helpers::check_all_stop_conditions(
             params, opts, time_elapsed, k, stop_signal, εₖ, no_progress);
@@ -261,9 +244,10 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
             s.final_φγ     = curr->fbe();
             return s;
         }
- 
+
         // Calculate quasi-Newton step -----------------------------------------
- 
+
+        real_t τ_init = NaN<config_t>;
         if (k == 0) { // Initialize L-BFGS
             ScopedMallocAllower ma;
             direction.initialize(problem, y, Σ, curr->γ, curr->x, curr->x̂,
@@ -284,24 +268,12 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
             τ_init = 0;
         }
 
-        }); 
-        /*   End parallel_for steps 1-4 */
-
         // Line search ---------------------------------------------------------
- 
+
         next->γ       = curr->γ;
         next->L       = curr->L;
         τ             = τ_init;
         real_t τ_prev = -1;
-
-        Kokkos::fence();
-
-        /*   Start parallel_for steps 5 */
-        /*parallel_for("step5",
-                Kokkos::TeamPolicy<Kokkos::OpenMP>(numberOfTeams, Kokkos::AUTO),
-                [=] (const team_handle &team)  
-        {*/
-        
 
         // xₖ₊₁ = xₖ + pₖ
         auto take_safe_step = [&] {
@@ -313,7 +285,7 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
             next->ψx     = curr->ψx̂;
             next->grad_ψ.swap(grad_ψx̂);
         };
- 
+
         // xₖ₊₁ = xₖ + (1-τ) pₖ + τ qₖ
         auto take_accelerated_step = [&](real_t τ) {
             if (τ == 1) // → faster quasi-Newton step
@@ -324,20 +296,14 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
             eval_ψ_grad_ψ(*next);
         };
 
-        //});
-        /*   End parallel_for steps 5 */
-
-        Kokkos::fence();
-
         while (!stop_signal.stop_requested()) {
- 
 
             // Recompute step only if τ changed
             if (τ != τ_prev) {
                 τ != 0 ? take_accelerated_step(τ) : take_safe_step();
                 τ_prev = τ;
             }
- 
+
             // If the cost is not finite, abandon the direction entirely, don't
             // even bother backtracking.
             if (τ > 0 && !std::isfinite(next->ψx)) {
@@ -346,19 +312,9 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
                 continue;
             }
 
-            /*   Start parallel_for steps 6 */
-            parallel_for("step6",
-                Kokkos::TeamPolicy<Kokkos::OpenMP>(numberOfTeams, Kokkos::AUTO),
-                [=] (const team_handle &team)   
-            {
-
             // Calculate x̂ₖ₊₁, ψ(x̂ₖ₊₁)
             eval_prox_grad_step(*next);
             eval_ψx̂(*next);
-
-            }); //End parallel_for steps 6 
- 
-            Kokkos::fence();
 
             // Quadratic upper bound
             if (next->L < params.L_max && qub_violated(*next)) {
@@ -368,7 +324,7 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
                 ++s.stepsize_backtracks;
                 continue;
             }
- 
+
             // Line search condition
             if (τ > 0 && linesearch_violated(*curr, *next)) {
                 τ /= 2;
@@ -377,48 +333,34 @@ auto ParaPANOCSolver<DirectionProviderT>::operator()(
                 ++s.linesearch_backtracks;
                 continue;
             }
- 
+
             // QUB and line search satisfied
             break;
-
         }
-
-        /*   start parallel_for steps 10-end*/
-        parallel_for("step7-9",
-                        Kokkos::TeamPolicy<Kokkos::OpenMP>(numberOfTeams, Kokkos::AUTO),
-                        [=] (const team_handle &team)   
-        {    
-
         // If τ < τ_min the line search failed and we accepted the prox step
         s.linesearch_failures += (τ == 0 && τ_init > 0);
         s.τ_1_accepted += τ == 1;
         s.count_τ += 1;
         s.sum_τ += τ;
- 
+
         // Check if we made any progress
         if (no_progress > 0 || k % params.max_no_progress == 0)
             no_progress = curr->x == next->x ? no_progress + 1 : 0;
- 
+
         // Update L-BFGS -------------------------------------------------------
- 
+
         if (curr->γ != next->γ) // Flush L-BFGS if γ changed
             direction.changed_γ(next->γ, curr->γ);
- 
+
         s.lbfgs_rejected +=
             not direction.update(curr->γ, next->γ, curr->x, next->x, curr->p,
                                  next->p, curr->grad_ψ, next->grad_ψ);
- 
+
         // Advance step --------------------------------------------------------
         std::swap(curr, next);
-
-        }); 
-        //end parallel_for steps 10-end
-
-        Kokkos::fence();
-
         ++k;
     }
     throw std::logic_error("[PANOC] loop error");
 }
- 
-}
+
+} // namespace alpaqa

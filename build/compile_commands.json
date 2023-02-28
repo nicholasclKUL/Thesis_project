@@ -1,8 +1,8 @@
 [
 {
   "directory": "/home/nicholas/Thesis_project/build",
-  "command": "/usr/bin/g++ -DEIGEN_INITIALIZE_MATRICES_BY_NAN -DEIGEN_RUNTIME_NO_MALLOC -DKOKKOS_DEPENDENCE -I/home/nicholas/Thesis_project/src/include -isystem /home/nicholas/Thesis_project/installation/include -isystem /home/nicholas/Thesis_project/installation/include/eigen3 -g -fopenmp -fdiagnostics-show-option -Wall -Wextra -pedantic -Wpedantic -pedantic-errors -Wdouble-promotion -Wswitch-default -Wswitch-enum -Wimplicit-fallthrough -Wuninitialized -Wno-missing-braces -Wno-error=unused-but-set-variable -Wsuggest-override -Wno-error=attributes -Wno-psabi -std=gnu++20 -o src/CMakeFiles/thesis.dir/para-panoc.cpp.o -c /home/nicholas/Thesis_project/src/para-panoc.cpp",
-  "file": "/home/nicholas/Thesis_project/src/para-panoc.cpp"
+  "command": "/usr/bin/g++ -DEIGEN_INITIALIZE_MATRICES_BY_NAN -DEIGEN_RUNTIME_NO_MALLOC -DKOKKOS_DEPENDENCE -I/home/nicholas/Thesis_project/src/include -isystem /home/nicholas/Thesis_project/installation/include -isystem /home/nicholas/Thesis_project/installation/include/eigen3 -g -fopenmp -fdiagnostics-show-option -Wall -Wextra -pedantic -Wpedantic -pedantic-errors -Wdouble-promotion -Wswitch-default -Wswitch-enum -Wimplicit-fallthrough -Wuninitialized -Wno-missing-braces -Wno-error=unused-but-set-variable -Wsuggest-override -Wno-error=attributes -Wno-psabi -std=gnu++20 -o src/CMakeFiles/thesis.dir/src/Thesis.cpp.o -c /home/nicholas/Thesis_project/src/src/Thesis.cpp",
+  "file": "/home/nicholas/Thesis_project/src/src/Thesis.cpp"
 },
 {
   "directory": "/home/nicholas/Thesis_project/build",

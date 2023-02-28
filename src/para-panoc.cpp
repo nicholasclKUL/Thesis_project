@@ -1,27 +1,28 @@
-#include </home/nicholas/Thesis_project/src/src/para-panoc.tpp>
+#include <Thesis/para-panoc.hpp>
+//#include <Thesis/para->
 
 namespace alpaqa {
 
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCParams, DefaultConfig);
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCParams, EigenConfigf);
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCParams, EigenConfigd);
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCParams, EigenConfigl);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCParams, DefaultConfig);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCParams, EigenConfigf);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCParams, EigenConfigd);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCParams, EigenConfigl);
 #ifdef ALPAQA_WITH_QUAD_PRECISION
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCParams, EigenConfigq);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCParams, EigenConfigq);
 #endif
 
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCStats, DefaultConfig);
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCStats, EigenConfigf);
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCStats, EigenConfigd);
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCStats, EigenConfigl);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCStats, DefaultConfig);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCStats, EigenConfigf);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCStats, EigenConfigd);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCStats, EigenConfigl);
 #ifdef ALPAQA_WITH_QUAD_PRECISION
 ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCStats, EigenConfigq);
 #endif
 
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCProgressInfo, DefaultConfig);
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCProgressInfo, EigenConfigf);
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCProgressInfo, EigenConfigd);
-ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCProgressInfo, EigenConfigl);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCProgressInfo, DefaultConfig);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCProgressInfo, EigenConfigf);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCProgressInfo, EigenConfigd);
+ALPAQA_EXPORT_TEMPLATE(struct, PANOCProgressInfo, EigenConfigl);
 #ifdef ALPAQA_WITH_QUAD_PRECISION
 ALPAQA_EXPORT_TEMPLATE(struct, ParaPANOCProgressInfo, EigenConfigq);
 #endif

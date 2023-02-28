@@ -1,13 +1,14 @@
-#include <Thesis/para-panoc.hpp>
+#include <alpaqa/problem/ocproblem.hpp>
 #include <alpaqa/inner/directions/panoc/lbfgs.hpp>
-#include <alpaqa/problem/type-erased-problem.hpp>
 #include <alpaqa/inner/inner-solve-options.hpp>
-
+#include <alpaqa/config/config.hpp>
+#include <Kokkos_Core.hpp>
 #include <iostream>
+#include <alpaqa/panoc-alm.hpp>
+#include <alpaqa/problem/type-erased-problem.hpp>
 
-int main(int argc, char* argv[]){
-
-    USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
+int main(){
+USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
  
     // Problem specification
     // minimize  ½ xᵀQx
@@ -54,48 +55,58 @@ int main(int argc, char* argv[]){
  
     // Define the solvers to use
     using Accelerator = alpaqa::LBFGSDirection<config_t>;
-    using InnerSolver = alpaqa::ParaPANOCSolver<Accelerator>;
-
-    // Initialize parameters for ParaPANOC
+    using InnerSolver = alpaqa::PANOCSolver<Accelerator>;
+    using OuterSolver = alpaqa::ALMSolver<InnerSolver>;
+ 
+    // Settings for the outer augmented Lagrangian method
+    OuterSolver::Params almparam;
+    almparam.ε              = 1e-8; // tolerance
+    almparam.δ              = 1e-8;
+    almparam.Δ              = 10; // penalty update factor
+    almparam.max_iter       = 20;
+    almparam.print_interval = 1;
+ 
+    // Settings for the inner PANOC solver
     InnerSolver::Params panocparam;
-
-    // Inatialize parameters for L-BFGS
-    Accelerator::LBFGSParams lbfgsparam;   
-
-    InnerSolver solver{
-        panocparam, lbfgsparam
+    panocparam.max_iter       = 500;
+    panocparam.print_interval = 1;
+    // Settings for the L-BFGS algorithm used by PANOC
+    Accelerator::LBFGSParams lbfgsparam;
+    lbfgsparam.memory = 2;
+ 
+    // Create an ALM solver using PANOC as inner solver
+    OuterSolver solver{
+        almparam,                 // params for outer solver
+        {panocparam, lbfgsparam}, // inner solver
     };
-
-        // Initial guess
+ 
+    // Initial guess
     vec x(2);
     x << 2, 2; // decision variables
     vec y(1);
     y << 1; // Lagrange multipliers
-    vec Σ(1);
-    Σ << 0.1; // Penalty 
-    vec err(1);
-    err << 0; //error in z
-    alpaqa::InnerSolveOptions<config_t> sol_opts;
  
     // Solve the problem
-    auto stats = solver(counted_problem, sol_opts , x, y, Σ, err);
+    auto stats = solver(counted_problem, x, y);
     // y and x have been overwritten by the solution
-
+ 
     // Print the results
     std::cout << '\n' << *counted_problem.evaluations << '\n';
     std::cout << "status: " << stats.status << '\n'
               << "f = " << problem.eval_f(x) << '\n'
-              << "inner iterations: " << stats.iterations << '\n'
+              << "inner iterations: " << stats.inner.iterations << '\n'
+              << "outer iterations: " << stats.outer_iterations << '\n'
               << "ε = " << stats.ε << '\n'
+              << "δ = " << stats.δ << '\n'
               << "elapsed time:     "
               << std::chrono::duration<double>{stats.elapsed_time}.count()
               << " s" << '\n'
               << "x = " << x.transpose() << '\n'
               << "y = " << y.transpose() << '\n'
-              << "avg τ = " << (stats.sum_τ / stats.count_τ) << '\n'
-              << "L-BFGS rejected = " << stats.lbfgs_rejected << '\n'
-              << "L-BFGS failures = " << stats.lbfgs_failures << '\n'
-              << "Line search failures = " << stats.linesearch_failures
+              << "avg τ = " << (stats.inner.sum_τ / stats.inner.count_τ) << '\n'
+              << "L-BFGS rejected = " << stats.inner.lbfgs_rejected << '\n'
+              << "L-BFGS failures = " << stats.inner.lbfgs_failures << '\n'
+              << "Line search failures = " << stats.inner.linesearch_failures
               << '\n'
               << std::endl;
 
