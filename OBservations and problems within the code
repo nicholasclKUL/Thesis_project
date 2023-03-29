@@ -1,0 +1,13 @@
+->Gradient and cost function will be different between SS and MS throughut optimization, because they are different formulations (e.g different number of decision variabes, cost function, etc). They will only "match" upon convergence. Is this also true for the inner optimization? Do the inner problems of SS and MS share the same minimizer and minima?
+
+->Algorithm's behavior improved after fixing mistakes in PANOC's cost evaluation.  
+
+->CHECKED: grad_ψ(x_k) and ψ(x_k) remains constant during QUB checking
+
+->In "Parallel in time Multiple-Shooting...", the author says that the convergence of the inner problem is stricly related to the penalty parameters, c. Could it be the issue? The stoping criteria is grad_L < e = o(1/c). We have c=1, hence e=1. However, my solver stops at grad_L~=5.
+
+->Has ψ(x̂_k) been updated correctly?? It looks so!
+
+->Does derived grad_ψ matches ψ??
+
+->[IMPORTANT]: Try optimization using finite difference! If result is the same as using the derived gradient, then it is correct!

@@ -1,9 +1,26 @@
 {
     "cmake.configureEnvironment": {
-        "CMAKE_PREFIX_PATH": "${workspaceFolder}/installation"
+        "CMAKE_PREFIX_PATH": "${workspaceFolder}/installation",
+        // "CXXFLAGS": "-march=native",
+        // "LDFLAGS": "-static-libstdc++",
+        // "VIRTUAL_ENV": "${env:HOME}/alpaqa/py-venv",
     },
 
+    // "cmake.configureSettings": {
+    //     "Python3_EXECUTABLE": "${env:HOME}/alpaqa/py-venv/bin/python",
+    //     "alpaqa_DIR": "${env:HOME}/alpaqa/staging/lib/cmake/alpaqa",
+    //     "Kokkos_DIR": "${env:HOME}/Thesis_project/installation/lib/cmake/Kokkos",
+    //     "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+    //     "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+    // },
+    // "cmake.additionalKits": [
+    //     "${env:HOME}/alpaqa/.vscode/cmake-kits.json"
+    // ],
+    // "cmake.generator": "Ninja Multi-Config",
+
     "files.associations": {
+        ".tpp": "",
+        "*.tpp": "cpp",
         "core": "cpp",
         "any": "cpp",
         "array": "cpp",
@@ -75,6 +92,8 @@
         "streambuf": "cpp",
         "thread": "cpp",
         "typeinfo": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "charconv": "cpp",
+        "*.inc": "cpp"
     },
 }

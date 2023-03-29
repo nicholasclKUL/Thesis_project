@@ -1,0 +1,6 @@
+/py-venv
+python_build
+__pycache__
+/build
+.*cache
+/toolchains

@@ -13,10 +13,11 @@ if (MSVC)
     set(CMAKE_CXX_FLAGS "/utf-8 /Dnot=! /D__PRETTY_FUNCTION__=__FUNCSIG__ ${CMAKE_CXX_FLAGS}")
 endif()
 
-find_package(Taskflow REQUIRED)
 find_package(Kokkos REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(alpaqa REQUIRED)
+find_package(OpenMP REQUIRED) #add OpenMP::OpenMP<CXX> to the file I am calling it
+find_package(Threads REQUIRED)
 
 add_subdirectory(src)
 add_subdirectory(applications)

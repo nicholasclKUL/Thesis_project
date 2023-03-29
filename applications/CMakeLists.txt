@@ -3,5 +3,8 @@ add_executable(test #example!!
 )
 
 find_package(alpaqa REQUIRED)
+find_package(Kokkos REQUIRED)
+
 target_link_libraries(test PUBLIC thesis PRIVATE thesis::warnings)
 target_link_libraries(test PUBLIC alpaqa::alpaqa alpaqa::warnings)
+target_link_libraries(test PUBLIC Kokkos::kokkos)
