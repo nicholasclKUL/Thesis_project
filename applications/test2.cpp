@@ -35,6 +35,7 @@ struct Iterate {
     vec Π_D;            //< Projection of states and variables into their box constraints
     vec Z;              //< (Σ*(f(xₖ,uₖ)-xₖ₊₁-Π_D(f(xₖ,uₖ)-xₖ₊₁+Σ⁻¹y))-y)
     vec l;              //< cost function l(x,u) in each stage in the horizon N
+    real_t ψxu = 0;
 
     Iterate(length_t n, length_t m, length_t nxu, length_t N) :
     xu(n), xû(n), grad_ψ(n), z(n), p(n), fxu(m), hxu(n), Jfxu(m,nxu),
@@ -143,6 +144,53 @@ auto eval_ψ_k = [](int k, Problem &problem, Iterate &It){
     
 };
 
+auto FD = [](Problem &problem, real_t &h, Iterate &it, crvec μ, crvec y){
+    real_t ψxu_ = 0;
+    index_t N   = problem.get_N(); 
+    index_t nu  = problem.get_nu();
+    index_t nx  = problem.get_nx();
+    index_t nxu = nx + nu;
+    index_t n   = (N-1)*(nxu) + nx;
+    index_t m   = (N-1)*nx;
+    vec lxu_    = vec::Zero(N);
+    vec hxu_    = vec::Zero(n);
+    vec xu_     = vec::Zero(n); 
+    vec fxu_    = vec::Zero(m);
+    vec d       = vec::Zero(m);
+    vec v       = vec::Zero(m);
+    vec g       = vec::Zero(m);
+    Box D       = alpaqa::Box<config_t>::NaN(m);
+    problem.get_D(D);
+
+    for (index_t i = 0; i < n; ++i) {
+        xu_ = it.xu;
+        xu_(i) += h;
+        for (index_t k = 0; k < N; ++k) {
+            if (k == N-1) {
+                problem.eval_h_N(xu_.segment(k*nxu,nx),
+                                    hxu_.segment(k*nxu,nx));
+                lxu_(k) = problem.eval_l_N(hxu_.segment(k*nxu,nx));
+            } else {
+                problem.eval_f(k, xu_.segment(k*nxu,nx),
+                                xu_.segment(k*(nxu)+nx,nu), 
+                                fxu_.segment(k*nx,nx));
+                problem.eval_h(k, xu_.segment(k*nxu,nx), 
+                                xu_.segment((k*nxu)+nx,nu),
+                                hxu_.segment(k*nxu,nxu));
+                lxu_(k) = problem.eval_l(k, hxu_.segment(k*nxu,nxu)); 
+            }
+        }
+        for (index_t k = 0; k < N-1; ++k) {
+            g.segment(k*nx,nx) = fxu_.segment(k*nx,nx) - 
+                                 xu_.segment((k+1)*nxu,nx);
+        }
+        d = g + μ.asDiagonal().inverse()*y; 
+        v = d - eval_proj_set(D, d); 
+        ψxu_ = lxu_.sum() + real_t(.5)*v.transpose()*(μ).asDiagonal()*v;
+        it.grad_ψ(i) = (ψxu_ - it.ψxu)/h;
+    }
+};
+
 int main(){
 
     USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
@@ -156,20 +204,27 @@ int main(){
     auto n      = (nxu*(N-1))+nx;
     auto m      = nx*(N-1);
 
-    real_t ψ = 0;
+    real_t ψ    = 0;
+    real_t ψ2   = 0;
+    vec grad_ψ  = vec::Zero(n);
 
     Iterate ite(n, m, nxu, N);
+    Iterate ite2(n, m, nxu, N);
     problem.get_x_init(ite.xu);
+    problem.get_x_init(ite2.xu);
 
     srand(10);
 
     vec μ = vec::Ones(ite.fxu.size());
     vec y = vec::Zero(ite.fxu.size());
 
+    // -------------------- Parallelization testing --------------------------- //
+
     Kokkos::initialize(Kokkos::InitializationSettings().set_num_threads(4));
 
     Kokkos::parallel_for(N, [&] (const int i){
-            eval_iterate(i, problem, ite, μ, y); 
+            eval_iterate(i, problem, ite, μ, y);
+            eval_iterate(i, problem, ite2, μ, y); 
         }
     );
 
@@ -186,10 +241,23 @@ int main(){
             ψ_ += eval_ψ_k(i, problem, ite);
         },
     ψ);
+    Kokkos::parallel_reduce(N, [&] (const int i, real_t &ψ_){
+            ψ_ += eval_ψ_k(i, problem, ite2);
+        },
+    ψ2);
+    ite2.ψxu = ψ2;
 
     Kokkos::fence();
 
     Kokkos::finalize();
+
+    // ----------------------------- FD testing --------------------------------- //
+
+    real_t h = 0.01;
+
+    FD(problem, h, ite2, μ, y);
+
+    // ------------------------------ Printing ---------------------------------- //
 
     Eigen::IOFormat CleanFmt(4, 0, ", ", "      \n", "[", "]");
 
@@ -204,7 +272,7 @@ int main(){
                 << std::endl;
         }
         else if (i==0){
-            std::cout << "* iteration : " << i << '\n'
+            std::cout << "* Stage : " << i+1 << '\n'
                 << "f(x,u)  = " << ite.fxu.segment(i*nx,nx).transpose() << '\n'
                 << "(x,u)   = " << ite.xu.segment(i*nxu,nxu).transpose() << '\n'
                 << "    Z   = " << ite.Z.segment(i*nx,nx).transpose() << '\n'
@@ -216,7 +284,7 @@ int main(){
                 << std::endl;
         }
         else{
-            std::cout << "* iteration : " << i << '\n'
+            std::cout << "* Stage : " << i+1 << '\n'
                 << "f(x,u)  = " << ite.fxu.segment(i*nx,nx).transpose() << '\n'
                 << "(x,u)   = " << ite.xu.segment(i*nxu,nxu).transpose() << '\n'
                 << "    Z   = " << ite.Z.segment(i*nx,nx).transpose() << '\n'
@@ -228,6 +296,7 @@ int main(){
                 << std::endl;
         }
     }
-    std::cout<< "ψ(x,u)     = " << ψ <<std::endl;
-    std::cout<< "∇ψ(x,u)     = " << ite.grad_ψ.transpose() <<std::endl;   
+    std::cout<< "ψ(x,u)         = " << ψ <<std::endl;
+    std::cout<< "∇ψ(x,u)        = " << ite.grad_ψ.transpose() <<std::endl;
+    std::cout<< "∇ψ(x,u) (FD)   = " << ite2.grad_ψ.transpose() <<std::endl;  
 }

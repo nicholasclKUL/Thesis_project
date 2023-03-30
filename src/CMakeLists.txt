@@ -4,6 +4,7 @@ add_library(thesis
 "include/Thesis/Thesis.hpp"
 "include/Thesis/para-panoc.hpp"
 "include/Thesis/ocp-funcs.hpp"
+"include/Thesis/para-alm.hpp"
 )
 
 target_link_libraries(thesis PRIVATE Kokkos::kokkos)

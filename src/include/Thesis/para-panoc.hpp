@@ -33,7 +33,6 @@ class ParaPANOCSolver {
 
     Stats operator()(const Problem &problem,    // in
                      const SolveOptions &opts,  // in
-                     rvec u,                    // inout
                      rvec xu_init,              // inout
                      rvec y,                    // in
                      crvec μ,                   // in
@@ -82,8 +81,6 @@ auto ParaPANOCSolver<Conf>::operator()(
     const Problem &problem,
     /// [in]    Solve options
     const SolveOptions &opts,
-    /// [inout] Decision variable @f$ u @f$
-    rvec u,
     /// [inout] Initial vector input for MS-OCP
     rvec xu,
     /// [inout] Lagrange multipliers @f$ y @f$
@@ -115,6 +112,7 @@ auto ParaPANOCSolver<Conf>::operator()(
     vec q(n); // Newton step, including states
     Box<config_t> U   = Box<config_t>::NaN(nxu);   
     Box<config_t> D   = Box<config_t>::NaN(nx);
+    Box<config_t> Dfd = Box<config_t>::NaN(m);
     Box<config_t> D_N = Box<config_t>::NaN(nx); 
 
     // Iterates ----------------------------------------------------------------
@@ -214,6 +212,7 @@ auto ParaPANOCSolver<Conf>::operator()(
         else if(k_ == 0){
             It.grad_ψ.segment(k*nxu,nxu) = It.qr.segment(k*nxu,nxu) +
                         It.Jfxu.block(k*nx,0,nx,nxu).transpose() * It.Z.segment(k*nx,nx);
+            It.grad_ψ.segment(0,nx).setZero();
         }
         else {
             It.grad_ψ.segment(k*nxu,nxu) = It.qr.segment(k*nxu,nxu) - I*It.Z.segment((k-1)*nx,nx) +
@@ -307,30 +306,54 @@ auto ParaPANOCSolver<Conf>::operator()(
         }
     };
 
-    auto fd_grad_ψ = [&](Iterate &cur, Iterate &nex, crvec μ, crvec y) {
-        real_t h = 0.0001;
-        for (index_t i=0; i<n; i++){
-            nex.xu = cur.xu;
-            nex.xu(i) += h;
-            for (index_t k=0; k<N; k++){
-                Eigen::Index k_ = k;
-                if (k_ == N-1){
-                    problem.eval_h_N(nex.xu.segment(k*nxu,nx),
-                            nex.hxu.segment(k*nxu,nx));
+    auto fd_grad_ψ = [&](Iterate &it, crvec μ, crvec y) {
+        
+        alpaqa::ScopedMallocAllower ma;
+        
+        real_t h = 0.001;
+        real_t ψxu_ = 0;
+        index_t N   = problem.get_N(); 
+        index_t nu  = problem.get_nu();
+        index_t nx  = problem.get_nx();
+        index_t nxu = nx + nu;
+        index_t n   = (N-1)*(nxu) + nx;
+        index_t m   = (N-1)*nx;
+        vec lxu_    = vec::Zero(N);
+        vec hxu_    = vec::Zero(n);
+        vec xu_     = vec::Zero(n); 
+        vec fxu_    = vec::Zero(m);
+        vec d       = vec::Zero(m);
+        vec v       = vec::Zero(m);
+        vec g       = vec::Zero(m);
+        Box D       = alpaqa::Box<config_t>::NaN(m);
+        problem.get_D(D);
+
+        for (index_t i = 0; i < n; ++i) {
+            xu_ = it.xu;
+            xu_(i) += h;
+            for (index_t k = 0; k < N; ++k) {
+                if (k == N-1) {
+                    problem.eval_h_N(xu_.segment(k*nxu,nx),
+                                        hxu_.segment(k*nxu,nx));
+                    lxu_(k) = problem.eval_l_N(hxu_.segment(k*nxu,nx));
                 } else {
-                    problem.eval_f(k, nex.xû.segment(k*nxu,nx),
-                                nex.xû.segment((k*nxu)+nx,nu), 
-                                nex.fxû.segment(k*nx,nx));
-                    problem.eval_h(k, nex.xu.segment(k*nxu,nx), 
-                                nex.xu.segment((k*nxu)+nx,nu),
-                                nex.hxu.segment(k*nxu,nxu));            
-                    nex.lxu(k) = problem.eval_l(k, nex.hxu.segment(k*nxu,nxu));
+                    problem.eval_f(k, xu_.segment(k*nxu,nx),
+                                    xu_.segment(k*(nxu)+nx,nu), 
+                                    fxu_.segment(k*nx,nx));
+                    problem.eval_h(k, xu_.segment(k*nxu,nx), 
+                                    xu_.segment((k*nxu)+nx,nu),
+                                    hxu_.segment(k*nxu,nxu));
+                    lxu_(k) = problem.eval_l(k, hxu_.segment(k*nxu,nxu)); 
                 }
             }
-            auto C = nex.fxu + μ.asDiagonal().inverse()*y;
-            auto d = C - eval_proj_set(D, C);
-            nex.ψxu = nex.lxu.sum() + real_t(.5)*(d.transpose()*μ.asDiagonal())*d;
-            nex.grad_ψ(i) = (nex.ψxu - cur.ψxu) / h;
+            for (index_t k = 0; k < N-1; ++k) {
+                g.segment(k*nx,nx) = fxu_.segment(k*nx,nx) - 
+                                        xu_.segment((k+1)*nxu,nx);
+            }
+            d.noalias() = g + μ.asDiagonal().inverse()*y; 
+            v.noalias() = d - eval_proj_set(D, d); 
+            ψxu_ = lxu_.sum() + real_t(.5)*v.transpose()*(μ).asDiagonal()*v;
+            it.grad_ψ(i) = (ψxu_ - it.ψxu)/h;
         }
     };
 
@@ -498,7 +521,7 @@ auto ParaPANOCSolver<Conf>::operator()(
                 << ",    γ = " << print_real(It.γ)               
                 << ",    ε = " << print_real(εₖ) << '\n'
                 << "│   xu = " << It.xu.transpose() << '\n'
-                << "│   ∇ψ = " << It.grad_ψ.transpose() << '\n\n'<<std::endl;
+                << "│   ∇ψ = " << It.grad_ψ.transpose() << '\n'<<std::endl;
         }
     };
     auto print_progress_n = [&](SolverStatus status) {
@@ -508,10 +531,10 @@ auto ParaPANOCSolver<Conf>::operator()(
 
     // Initialize inputs and initial state ----------------------------
 
-    problem.get_x_init(curr->xu);   // initial state
-    curr->xû        = curr->xu;
-    next->xu        = curr->xu;
-    next->xû        = curr->xu;
+    curr->xu = xu;   // initial state
+    curr->xû = curr->xu;
+    next->xu = curr->xu;
+    next->xû = curr->xu;
 
     problem.get_U(U);               // input box constraints
     problem.get_D(D);               // general constraints
@@ -566,10 +589,10 @@ auto ParaPANOCSolver<Conf>::operator()(
     // Keep track of how many successive iterations didn't update the iterate
     unsigned no_progress = 0;
 
-    std::cout<<"∇ψ_curr = "<<curr->grad_ψ.transpose()<<'\n'
-             <<"∇ψ_next = "<<next->grad_ψ.transpose()<<'\n'
-             <<"ψ_curr = "<<print_real3(curr->ψxu)<<'\n'
-             <<"ψ_next = "<<print_real3(next->ψxu)<<'\n'<<std::endl;
+    // std::cout<<"∇ψ_curr = "<<curr->grad_ψ.transpose()<<'\n'
+    //          <<"∇ψ_next = "<<next->grad_ψ.transpose()<<'\n'
+    //          <<"ψ_curr = "<<print_real3(curr->ψxu)<<'\n'
+    //          <<"ψ_next = "<<print_real3(next->ψxu)<<'\n'<<std::endl;
 
     // Main PANOC loop
     // =========================================================================

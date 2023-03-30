@@ -1,5 +1,6 @@
 #include <alpaqa/config/config.hpp>
 #include <Thesis/para-panoc.hpp>
+#include <Thesis/para-alm.hpp>
 #include <Thesis/ocp-funcs.hpp>
 #include <Kokkos_Core.hpp>
 #include <iostream>
@@ -70,11 +71,13 @@ std::cout<<"initial guess x₀: "<<xu.transpose()<<'\n'<<std::endl;
 
 alpaqa::ParaPANOCSolver<config_t> solver{params};
 
-auto stats = solver(problem, {.tolerance = 1e-8}, u, xu, y, μ, e, nt);
+auto stats = solver(problem, {.tolerance = 1e-8}, xu, y, μ, e, nt);
 
-alpaqa::PANOCOCPSolver<config_t> solver2{params};
+alpaqa::ALMParams almparams; almparams.ε = 1e-4; // tolerance
 
-auto stats2 = solver2(problem, {.tolerance = 1e-8}, u, y2, μ2, e2);
+alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver{almparams,{params}};
+
+auto almstats = almsolver(problem, xu, y, nt);
 
 Kokkos::finalize();
 

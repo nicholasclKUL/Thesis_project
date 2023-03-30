@@ -13,7 +13,7 @@ struct OCProblem {
 
   using Box = alpaqa::Box<config_t>;
 
-  length_t N = 5,   ///< Horizon length
+  length_t N = 10,   ///< Horizon length
   nu = 1,           ///< Number of inputs
   nx = 2,           ///< Number of states
   nh = nu + nx,     ///< Number of stage outputs
@@ -37,8 +37,8 @@ struct OCProblem {
   [[nodiscard]] length_t get_nc_N() const { return nc_N; }
 
   void get_U(Box &U) const {
-    U.lowerbound.setConstant(-200);
-    U.upperbound.setConstant(+200);
+    U.lowerbound.setConstant(-alpaqa::inf<config_t>);
+    U.upperbound.setConstant(+alpaqa::inf<config_t>);
   }
 
   void get_D(Box &D) const {    
@@ -48,22 +48,22 @@ struct OCProblem {
 
   void get_D_N(Box &D) const {}
 
-  void get_x_init(rvec x_init) const { x_init.setConstant(-.5); }
+  void get_x_init(rvec x_init) const { x_init.setConstant(2); }
 
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const {
-    alpaqa::ScopedMallocAllower ma;
+    //alpaqa::ScopedMallocAllower ma;
     fxu.noalias() = A * x + B * u;
   }
 
   void eval_jac_f(index_t timestep, crvec x, crvec u, rmat J_fxu) const {
-    alpaqa::ScopedMallocAllower ma;
+    //alpaqa::ScopedMallocAllower ma;
     J_fxu.leftCols(nx).noalias() = A;
     J_fxu.rightCols(nu).noalias() = B;
   }
 
   void eval_grad_f_prod(index_t timestep, crvec x, crvec u, crvec p,
                         rvec grad_fxu_p) const {
-    alpaqa::ScopedMallocAllower ma;
+    //alpaqa::ScopedMallocAllower ma;
     grad_fxu_p.topRows(nx).noalias() = A.transpose() * p;
     grad_fxu_p.bottomRows(nu).noalias() = B.transpose() * p;
   }
@@ -76,24 +76,24 @@ struct OCProblem {
   void eval_h_N(crvec x, rvec h) const { h = x; }
 
   [[nodiscard]] real_t eval_l(index_t timestep, crvec h) const {
-    alpaqa::ScopedMallocAllower ma;
+    //alpaqa::ScopedMallocAllower ma;
     return 0.5 * h.squaredNorm();
   }
 
   [[nodiscard]] real_t eval_l_N(crvec h) const {
-    alpaqa::ScopedMallocAllower ma;
+    //alpaqa::ScopedMallocAllower ma;
     return 5 * h.squaredNorm();
   }
 
   void eval_qr(index_t timestep, crvec xu, crvec h, rvec qr) const {
-    alpaqa::ScopedMallocAllower ma;
+    //alpaqa::ScopedMallocAllower ma;
     auto Jh_xu = mat::Identity(nx + nu, nx + nu);
     auto &&grad_l = h;
     qr = Jh_xu.transpose() * grad_l;
   }
 
   void eval_q_N(crvec x, crvec h, rvec q) const {
-    alpaqa::ScopedMallocAllower ma;
+    //alpaqa::ScopedMallocAllower ma;
     auto Jh_x = mat::Identity(nx, nx);
     auto &&grad_l = 10 * h;
     q = Jh_x.transpose() * grad_l;
@@ -109,7 +109,7 @@ struct OCProblem {
 
   void eval_add_R_masked(index_t timestep, crvec xu, crvec h, crindexvec mask,
                          rmat R, rvec work) const {
-    alpaqa::ScopedMallocAllower ma;
+    //alpaqa::ScopedMallocAllower ma;
     const auto n = mask.size();
     R.noalias() += mat::Identity(n, n);
   }
@@ -128,7 +128,7 @@ struct OCProblem {
                               rvec out, rvec work) const {
 
   // The following has no effect because R is diagonal, and J ∩ K = ∅
-    alpaqa::ScopedMallocAllower ma;
+    //alpaqa::ScopedMallocAllower ma;
     auto R = mat::Identity(nu, nu);
     out.noalias() += R(mask_J, mask_K) * v(mask_K);
 
