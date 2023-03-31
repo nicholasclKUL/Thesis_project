@@ -93,7 +93,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
     // Check the problem dimensions etc.
     p.check();
 
-    // Lagrange multipliers corresponding to penalty constraints are always 0.
+    // Lagrange multipliers corresponding to penalty constraints are always 0. PENALTY CONSTRAINTS??
     auto &&y_penalty = y.topRows(params.penalty_alm_split);
     y_penalty.setZero();
 
@@ -101,13 +101,14 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
     if (m == 0) { // No general constraints, only box constraints
         Stats s;
         vec Σ(0), error(0);
+        vec g = vec::Constant(m, NaN<config_t>);
         InnerSolveOptions<config_t> opts{
             .always_overwrite_results = true,
             .max_time                 = params.max_time,
             .tolerance                = params.ε,
             .os                       = os,
         };
-        auto ps              = inner_solver(p, opts, x, y, Σ, error, nt);
+        auto ps              = inner_solver(p, opts, x, y, Σ, error, g, nt);
         bool inner_converged = ps.status == SolverStatus::Converged;
         auto time_elapsed    = std::chrono::steady_clock::now() - start_time;
         s.inner_convergence_failures = not inner_converged;
@@ -126,6 +127,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
     vec Σ_old                        = vec::Constant(m, NaN);
     vec error_1                      = vec::Constant(m, NaN);
     vec error_2                      = vec::Constant(m, NaN);
+    vec g                            = vec::Constant(m, NaN);
     [[maybe_unused]] real_t norm_e_1 = NaN;
     [[maybe_unused]] real_t norm_e_2 = NaN;
 
@@ -156,8 +158,6 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
     unsigned num_successful_iters = 0;
 
     for (unsigned int i = 0; i < params.max_iter; ++i) {
-        // TODO: this is unnecessary when the previous iteration lowered the
-        // penalty update factor.
         
         //eval_proj_multipliers(y, params.M, params.penalty_alm_split);
 
@@ -186,7 +186,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
         };
         // Call the inner solver to minimize the augmented lagrangian for fixed
         // Lagrange multipliers y.
-        auto ps = inner_solver(p, opts, x, y, Σ, error_2, nt);
+        auto ps = inner_solver(p, opts, x, y, Σ, error_2, g, nt);
         // Reset the Lagrange multipliers for the penalty constraints to 0 again.
         y_penalty.setZero();
         // Check if the inner solver converged
@@ -215,7 +215,6 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
                 << std::endl; // Flush for Python buffering
         }
 
-        // TODO: check penalty size?
         if (ps.status == SolverStatus::Interrupted) {
             s.ε                = ps.ε;
             s.δ                = vec_util::norm_inf(error_2);
@@ -254,8 +253,9 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
             norm_e_2 = std::exchange(norm_e_1, vec_util::norm_inf(error_1));
 
             // Check the termination criteria
+            real_t continuity = (g).norm(); // continuity of PDEs between stages
             bool alm_converged =
-                ps.ε <= params.ε && inner_converged && norm_e_1 <= params.δ;
+                ps.ε <= params.ε && inner_converged && continuity && norm_e_1 <= params.δ;
             bool exit = alm_converged || out_of_iter || out_of_time;
             if (exit) {
                 s.ε                = ps.ε;

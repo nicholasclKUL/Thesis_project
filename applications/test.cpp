@@ -43,6 +43,8 @@ vec xu = vec::Ones(nxu); // Inputs (multiple shooting)
 
 problem.get_x_init(xu); 
 
+vec g = vec::Ones(m); // constraints g(x,u)=0
+
 vec y = vec::Zero(m); // Lagrange multipliers
 
 vec y2 = vec::Zero(m2);
@@ -71,9 +73,9 @@ std::cout<<"initial guess x₀: "<<xu.transpose()<<'\n'<<std::endl;
 
 alpaqa::ParaPANOCSolver<config_t> solver{params};
 
-auto stats = solver(problem, {.tolerance = 1e-8}, xu, y, μ, e, nt);
+auto stats = solver(problem, {.tolerance = 1e-8}, xu, y, μ, e, g, nt);
 
-alpaqa::ALMParams almparams; almparams.ε = 1e-4; // tolerance
+alpaqa::ALMParams almparams; almparams.ε = 1e-5; // tolerance
 
 alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver{almparams,{params}};
 

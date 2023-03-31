@@ -1,18 +1,22 @@
-->Gradient and cost function will be different between SS and MS throughut optimization, because they are different formulations (e.g different number of decision variabes, cost function, etc). They will only "match" upon convergence. Is this also true for the inner optimization? Do the inner problems of SS and MS share the same minimizer and minima?
+(1) Gradient and cost function will be different between SS and MS throughut optimization, because they are different formulations (e.g different number of decision variabes, cost function, etc). They will only "match" upon convergence. Is this also true for the inner optimization? Do the inner problems of SS and MS share the same minimizer and minima?
 
-->Algorithm's behavior improved after fixing mistakes in PANOC's cost evaluation.  
+(2) Algorithm's behavior improved after fixing mistakes in PANOC's cost evaluation.  
 
-->CHECKED: grad_ψ(x_k) and ψ(x_k) remains constant during QUB checking
+(3) CHECKED: grad_ψ(x_k) and ψ(x_k) remains constant during QUB checking
 
-->In "Parallel in time Multiple-Shooting...", the author says that the convergence of the inner problem is stricly related to the penalty parameters, c. Could it be the issue? The stoping criteria is |grad_L| < e = o(1/c). We have c=1, hence e=1. However, my solver stops at    |grad_L|~=5.
+(4) In "Parallel in time Multiple-Shooting...", the author says that the convergence of the inner problem is stricly related to the penalty parameters, c. Could it be the issue? The stoping criteria is |grad_L| < e = o(1/c). We have c=1, hence e=1. However, my solver stops at    |grad_L|~=5.
 
-->Has ψ(x̂_k) been updated correctly?? It looks so!
+(5) Has ψ(x̂_k) been updated correctly?? It looks so!
 
-->Does derived grad_ψ matches ψ??
+(6) Does derived grad_ψ matches ψ??
 
 ->[IMPORTANT]: Try optimization using finite difference! If result is the same as using the derived gradient, then it is correct!
 	-> FD gradient matches derived gradient (Exact Gradient, EG)!
 	-> FD gradient explodes as we approach the minima!
-	-> It makes me think that, even though, the problem we are solving is a QP, PANOC's cost func, ψ, in MS formulation has a
-		nonsmooth term that does not allow us to reach the minima of a quadratic function and makes the gradient explodes!
-		However, I cannot see where MS would make ψ have a nonsmooth term.    
+		
+(7) Minimizer found when using ALM and PANOC together; This aligns with (4): minima of problem will only be found when ALM converges.
+
+(8) Next improvements to the code: 
+	-> Add team threads in parallelization;
+	-> Pass f(x,u) and (x,u) fro inner solver to outer solve for stopping criteria (f(x,u)-x)<error;
+      

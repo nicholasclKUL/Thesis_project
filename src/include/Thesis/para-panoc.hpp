@@ -37,6 +37,7 @@ class ParaPANOCSolver {
                      rvec y,                    // in
                      crvec μ,                   // in
                      rvec err_z,                // out
+                     rvec g,                    // out
                      index_t nthrds);
     template <class P>
     Stats operator()(const P &problem, const SolveOptions &opts, rvec u, rvec xu_init, rvec y,
@@ -89,6 +90,8 @@ auto ParaPANOCSolver<Conf>::operator()(
     crvec μ,
     /// [out]   Slack variable error @f$ c(x) - \Pi_D(c(x) + \mu^{-1} y) @f$
     rvec err_z, 
+    /// [out]   Continuity, f(x,u) - x+
+    rvec g,
     /// [in]    Number of threads
     index_t nthrds) -> Stats {
 
@@ -116,7 +119,7 @@ auto ParaPANOCSolver<Conf>::operator()(
     Box<config_t> D_N = Box<config_t>::NaN(nx); 
 
     // Iterates ----------------------------------------------------------------
-
+ 
     // Represents an iterate in the algorithm, keeping track of some
     // intermediate values and function evaluations.
     struct Iterate {
@@ -131,8 +134,9 @@ auto ParaPANOCSolver<Conf>::operator()(
         vec lxû;      //< cost function after T(x,u) -> l(x,û)
         mat Jfxu;     //< Jacobian of dynamics Jf(x,u)
         vec qr;       //< Cost function gradient Jh(x,u)dl(x,u)
-        vec gz;
-        vec gz_hat;
+        vec g;        //< Dynamic constraints, f(x,u) - x+
+        vec gz;       //< g(x) + Σ⁻¹y
+        vec gz_hat;   //< g(x_hat) + Σ⁻¹y
         vec Π_D;      //< Projection of states and variables into their box constraints
         vec Π_D_hat;  //< Projection of states and variables into their box constraints
         vec Z;        //< (Σ*(f(xₖ,uₖ)-xₖ₊₁-Π_D(f(xₖ,uₖ)-xₖ₊₁+Σ⁻¹y))-y)
@@ -150,7 +154,7 @@ auto ParaPANOCSolver<Conf>::operator()(
 
         Iterate(length_t n, length_t m, length_t nxu, length_t N) :
             xu(n), xû(n), grad_ψ(n), fxu(m), fxû(m), hxu(n), hxû(n), 
-            qr(n), gz(m), gz_hat(m), Π_D(m), Π_D_hat(m), Z(m), p(n), Jfxu(m, nxu), 
+            qr(n), g(m), gz(m), gz_hat(m), Π_D(m), Π_D_hat(m), Z(m), p(n), Jfxu(m, nxu), 
             lxu(N), lxû(N) {}
     
     } iterates[2]{{n, m, nxu, N}, {n, m, nxu, N}};     
@@ -189,10 +193,10 @@ auto ParaPANOCSolver<Conf>::operator()(
             It.lxu(k) = problem.eval_l(k, It.hxu.segment(k*nxu,nxu));
             problem.eval_qr(k, It.xu.segment(k*nxu,nxu), 
                             It.hxu.segment(k*nxu,nxu),
-                            It.qr.segment(k*nxu,nxu));            
-            It.gz.segment(k*nx,nx) = It.fxu.segment(k*nx,nx) - 
-                                    It.xu.segment((k+1)*nxu,nx)  
-                                    + ((μ).segment(k*nx,nx).asDiagonal().inverse()*(y.segment(k*nx,nx)));            
+                            It.qr.segment(k*nxu,nxu));
+            It.g.segment(k*nx,nx) = It.fxu.segment(k*nx,nx) - It.xu.segment((k+1)*nxu,nx);           
+            It.gz.segment(k*nx,nx) = It.g.segment(k*nx,nx) + 
+                                    ((μ).segment(k*nx,nx).asDiagonal().inverse()*(y.segment(k*nx,nx)));            
             It.Π_D.segment(k*nx,nx).noalias() = eval_proj_set(D, It.gz.segment(k*nx,nx));
             It.Z.segment(k*nx,nx)   = (μ.segment(k*nx,nx).cwiseProduct(It.fxu.segment(k*nx,nx)
                                     -It.xu.segment((k+1)*nxu,nx)-It.Π_D.segment(k*nx,nx)) 
@@ -209,7 +213,7 @@ auto ParaPANOCSolver<Conf>::operator()(
         if (k_ == N-1){
             It.grad_ψ.segment(k*nxu,nx) = It.qr.segment(k*nxu,nx) - It.Z.segment((k-1)*nx,nx);                            
         } 
-        else if(k_ == 0){
+        else if(k_ == 0){ //this part need optimization, unecessary calculations done!
             It.grad_ψ.segment(k*nxu,nxu) = It.qr.segment(k*nxu,nxu) +
                         It.Jfxu.block(k*nx,0,nx,nxu).transpose() * It.Z.segment(k*nx,nx);
             It.grad_ψ.segment(0,nx).setZero();
@@ -285,7 +289,7 @@ auto ParaPANOCSolver<Conf>::operator()(
         x̂ = x + p;
     };
 
-    auto eval_prox_impl = [&](Iterate &It) {
+    auto eval_prox_impl = [&](Iterate &It) { // add this calculations in eval_prox if (k_==N-1)??
         It.pᵀp      = It.p.squaredNorm();
         It.grad_ψᵀp = It.grad_ψ.dot(It.p);
     };
@@ -298,6 +302,8 @@ auto ParaPANOCSolver<Conf>::operator()(
             eval_proj_grad_step_box_N(It.γ, It.xu.segment(k*nxu,nx), 
                                     It.grad_ψ.segment(k*nxu,nx), 
                                     It.xû.segment(k*nxu,nx), It.p.segment(k*nxu,nx));
+            It.pᵀp      = It.p.squaredNorm();
+            It.grad_ψᵀp = It.grad_ψ.dot(It.p);
         }
         else{
             eval_proj_grad_step_box(It.γ, It.xu.segment(k*nxu,nxu), 
@@ -357,7 +363,7 @@ auto ParaPANOCSolver<Conf>::operator()(
         }
     };
 
-    auto calc_error_stop_crit = [this, &eval_prox_impl](
+    auto calc_error_stop_crit = [this](
                                     real_t γ, crvec xuₖ, crvec grad_ψₖ,
                                     crvec pₖ, real_t pₖᵀpₖ, rvec work_xu,
                                     rvec work_p) {
@@ -577,7 +583,6 @@ auto ParaPANOCSolver<Conf>::operator()(
         eval_prox(i, *curr);
     });
     Kokkos::fence();
-    eval_prox_impl(*curr);
     Kokkos::parallel_reduce(nthrds, [&](const int i, real_t &ψ_){
         ψ_ += eval_ψ_hat_k(i, *curr, μ, y);
     },curr->ψxû);
@@ -588,11 +593,6 @@ auto ParaPANOCSolver<Conf>::operator()(
 
     // Keep track of how many successive iterations didn't update the iterate
     unsigned no_progress = 0;
-
-    // std::cout<<"∇ψ_curr = "<<curr->grad_ψ.transpose()<<'\n'
-    //          <<"∇ψ_next = "<<next->grad_ψ.transpose()<<'\n'
-    //          <<"ψ_curr = "<<print_real3(curr->ψxu)<<'\n'
-    //          <<"ψ_next = "<<print_real3(next->ψxu)<<'\n'<<std::endl;
 
     // Main PANOC loop
     // =========================================================================
@@ -607,9 +607,9 @@ auto ParaPANOCSolver<Conf>::operator()(
         bool do_print =
             params.print_interval != 0 && k % params.print_interval == 0;
         if (do_print)
-            print_progress_3(*curr, εₖ, τ ,k);
-            // print_progress_1(k, curr->fbe(), curr->ψxu, curr->grad_ψ, curr->pᵀp,
-            //                  curr->γ, εₖ);
+            // print_progress_3(*curr, εₖ, τ ,k);
+            print_progress_1(k, curr->fbe(), curr->ψxu, curr->grad_ψ, curr->pᵀp,
+                             curr->γ, εₖ);
         if (progress_cb) {
             //ScopedMallocAllower ma;
             alpaqa::detail::Timed t{s.time_progress_callback};
@@ -639,9 +639,9 @@ auto ParaPANOCSolver<Conf>::operator()(
         if (stop_status != SolverStatus::Busy) {
             bool do_final_print = params.print_interval != 0;
             if (!do_print && do_final_print)
-                print_progress_3(*curr, εₖ, τ, k);
-                // print_progress_1(k, curr->fbe(), curr->ψxu, curr->grad_ψ, 
-                //                  curr->pᵀp, curr->γ, εₖ);
+                // print_progress_3(*curr, εₖ, τ, k);
+                print_progress_1(k, curr->fbe(), curr->ψxu, curr->grad_ψ, 
+                                 curr->pᵀp, curr->γ, εₖ);
             if (do_print || do_final_print)
                 print_progress_n(stop_status);
             if (stop_status == SolverStatus::Converged ||
@@ -727,8 +727,7 @@ auto ParaPANOCSolver<Conf>::operator()(
 
             // Recompute step only if τ changed
             if (τ != τ_prev) {
-                //τ != 0 ? take_accelerated_step(τ) : take_safe_step();
-                take_safe_step();
+                τ != 0 ? take_accelerated_step(τ) : take_safe_step();
                 τ_prev = τ;
             } 
 
@@ -743,8 +742,6 @@ auto ParaPANOCSolver<Conf>::operator()(
                 eval_prox(i, *next);
             });
             Kokkos::fence();
-            // Calculate pᵀp, grad_ψᵀp 
-            eval_prox_impl(*next);
 
             // Quadratic upper bound
             if (next->L < params.L_max && qub_violated(*next)) {
@@ -756,13 +753,13 @@ auto ParaPANOCSolver<Conf>::operator()(
             }
 
             // Line search condition
-            // if (τ > 0 && linesearch_violated(*curr, *next)) {
-            //     τ /= 2;
-            //     if (τ < params.τ_min)
-            //         τ = 0;
-            //     ++s.linesearch_backtracks;
-            //     continue;
-            // }
+            if (τ > 0 && linesearch_violated(*curr, *next)) {
+                τ /= 2;
+                if (τ < params.τ_min)
+                    τ = 0;
+                ++s.linesearch_backtracks;
+                continue;
+            }
 
             // QUB and line search satisfied
             break;
@@ -792,6 +789,8 @@ auto ParaPANOCSolver<Conf>::operator()(
         xu = curr->xu;
     }
     throw std::logic_error("[PANOC] loop error");
+    g = curr->g;
+    y += μ.asDiagonal()*g; 
 }
 
 
