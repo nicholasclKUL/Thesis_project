@@ -13,7 +13,7 @@ struct OCProblem {
 
   using Box = alpaqa::Box<config_t>;
 
-  length_t N = 10,   ///< Horizon length
+  length_t N = 3,   ///< Horizon length
   nu = 1,           ///< Number of inputs
   nx = 2,           ///< Number of states
   nh = nu + nx,     ///< Number of stage outputs
@@ -48,7 +48,7 @@ struct OCProblem {
 
   void get_D_N(Box &D) const {}
 
-  void get_x_init(rvec x_init) const { x_init.setConstant(2); }
+  void get_x_init(rvec x_init) const { x_init.setConstant(1); }
 
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const {
     //alpaqa::ScopedMallocAllower ma;

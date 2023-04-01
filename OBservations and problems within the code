@@ -10,13 +10,21 @@
 
 (6) Does derived grad_ψ matches ψ??
 
-->[IMPORTANT]: Try optimization using finite difference! If result is the same as using the derived gradient, then it is correct!
+(7) Try optimization using finite difference! If result is the same as using the derived gradient, then it is correct!
 	-> FD gradient matches derived gradient (Exact Gradient, EG)!
 	-> FD gradient explodes as we approach the minima!
 		
-(7) Minimizer found when using ALM and PANOC together; This aligns with (4): minima of problem will only be found when ALM converges.
+(8) Minimizer found when using ALM and PANOC together; This aligns with (4): minima of problem will only be found when ALM converges.
+		
+(9) QUB problem fixed
 
-(8) Next improvements to the code: 
+-> Fix L-BFGS update
+
+-> Next improvements to the code: 
 	-> Add team threads in parallelization;
-	-> Pass f(x,u) and (x,u) fro inner solver to outer solve for stopping criteria (f(x,u)-x)<error;
-      
+	-> Add search for active and inactive constraints;
+	-> Add box constraints for u and x separately;
+		-> Modify TypeErasedControlProblem to add the function .get_X();      
+
+-> Although in OBS(8) the code had a bug that would stop PANOC after a few iterations, this however proved benefitial to have a faster
+convergence to ALM; This aligns with (4); for the ALM we only need a rough estimate of the solution of the inner problem, hence we can keep the number of iterations the smallest possible, this will avoid the expensive iterations of PANOC due to the necessity of simulate our PDE inumerous times (evaluations of f(x,u)).  

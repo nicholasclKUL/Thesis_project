@@ -213,7 +213,7 @@ auto ParaPANOCSolver<Conf>::operator()(
         if (k_ == N-1){
             It.grad_ψ.segment(k*nxu,nx) = It.qr.segment(k*nxu,nx) - It.Z.segment((k-1)*nx,nx);                            
         } 
-        else if(k_ == 0){ //this part need optimization, unecessary calculations done!
+        else if(k_ == 0){ //this part need optimization, unnecessary calculations done!
             It.grad_ψ.segment(k*nxu,nxu) = It.qr.segment(k*nxu,nxu) +
                         It.Jfxu.block(k*nx,0,nx,nxu).transpose() * It.Z.segment(k*nx,nx);
             It.grad_ψ.segment(0,nx).setZero();
@@ -236,7 +236,7 @@ auto ParaPANOCSolver<Conf>::operator()(
             auto d = (It.gz.segment(k*nx,nx)-
                       eval_proj_set(D,It.gz.segment(k*nx,nx)));
             return ψxu_k = It.lxu(k) + 
-                         (0.5*d.transpose())*(μ.segment(k*nx,nx).asDiagonal()*d);
+                         0.5*d.transpose()*(μ).segment(k*nx,nx).asDiagonal()*d;
         }
     };
 
@@ -247,7 +247,7 @@ auto ParaPANOCSolver<Conf>::operator()(
 
         if (i_ == N-1){
             problem.eval_h_N(It.xû.segment(k*nxu,nx),
-                            It.hxû.segment(k*nxu,nx));
+                             It.hxû.segment(k*nxu,nx));
             It.lxû(k) = problem.eval_l_N(It.hxû.segment(k*nxu,nx));
             return ψxû_k = It.lxû(k);
         } 
@@ -262,11 +262,11 @@ auto ParaPANOCSolver<Conf>::operator()(
             It.gz_hat.segment(k*nx,nx) = It.fxû.segment(k*nx,nx) - 
                             It.xû.segment((k+1)*nxu,nx)  
                             + ((μ).segment(k*nx,nx).asDiagonal().inverse()*(y.segment(k*nx,nx)));
+            It.Π_D_hat.segment(k*nx,nx) = eval_proj_set(D, It.gz_hat.segment(k*nx,nx));  
             auto d = (It.gz_hat.segment(k*nx,nx)-
-                      eval_proj_set(D,It.gz_hat.segment(k*nx,nx)));
-            It.Π_D_hat.segment(k*nx,nx) = eval_proj_set(D, It.gz_hat.segment(k*nx,nx));   
-            return ψxû_k = It.lxû(k) +  
-                         real_t(.5) * d.transpose()*(μ).segment(k*nx,nx).asDiagonal()*d;            
+                      eval_proj_set(D,It.gz_hat.segment(k*nx,nx))); 
+            return ψxû_k = It.lxû(k) + 
+                         0.5*d.transpose()*(μ).segment(k*nx,nx).asDiagonal()*d;            
         }
     };
     
@@ -287,11 +287,6 @@ auto ParaPANOCSolver<Conf>::operator()(
                 .binaryExpr(D_N.lowerbound - x, binary_real_f(std::fmax))
                 .binaryExpr(D_N.upperbound - x, binary_real_f(std::fmin));
         x̂ = x + p;
-    };
-
-    auto eval_prox_impl = [&](Iterate &It) { // add this calculations in eval_prox if (k_==N-1)??
-        It.pᵀp      = It.p.squaredNorm();
-        It.grad_ψᵀp = It.grad_ψ.dot(It.p);
     };
 
     auto eval_prox = [&](int k, Iterate &It) {
@@ -501,8 +496,10 @@ auto ParaPANOCSolver<Conf>::operator()(
                 << ",    ψ = " << print_real(ψₖ)               //
                 << ", ‖∇ψ‖ = " << print_real(grad_ψₖ.norm())   //
                 << ",  ‖p‖ = " << print_real(std::sqrt(pₖᵀpₖ)) //
+                << ",  ‖q‖ = " << print_real(std::sqrt(pₖᵀpₖ)) //
                 << ",    γ = " << print_real(γₖ)               //
-                << ",    ε = " << print_real(εₖ) << '\n';
+                << ",    ε = " << print_real(εₖ)               //
+                << ",   sb = " << s.stepsize_backtracks << '\n';
         }
     };
     auto print_progress_2 = [&](crvec qₖ, real_t τₖ, bool did_gn, length_t nJ,
@@ -583,6 +580,7 @@ auto ParaPANOCSolver<Conf>::operator()(
         eval_prox(i, *curr);
     });
     Kokkos::fence();
+    curr->ψxû = 0;
     Kokkos::parallel_reduce(nthrds, [&](const int i, real_t &ψ_){
         ψ_ += eval_ψ_hat_k(i, *curr, μ, y);
     },curr->ψxû);
@@ -689,9 +687,9 @@ auto ParaPANOCSolver<Conf>::operator()(
 
         // xₖ₊₁ = xₖ + pₖ
         auto take_safe_step = [&] {
-            next->xu = curr->xû; // makes xₖ₊₁ = xₖ
-            next->ψxu = curr->ψxû; // and consequentely, ψ(xₖ₊₁) = ψ(xₖ)
-            // Calculate ∇ψ(xₖ₊₁) .: ∇ψ(xₖ₊₁) = ∇ψ(xₖ)
+            next->xu = curr->xû; // makes xₖ₊₁ = xₖ + pₖ = curr->xû, 
+            next->ψxu = curr->ψxû; // and consequentely, ψ(xₖ₊₁) = ψ(xₖ) = curr->ψxû
+            // Calculate ∇ψ(xₖ₊₁) .: ∇ψ(xₖ₊₁) = ∇ψ(xₖ); shouldn't we reuse ∇ψ(xₖ) from previous step??  
             Kokkos::parallel_for(nthrds, [&](const int i){
                 eval_iterate(i, *next, μ, y);
             });
@@ -701,6 +699,7 @@ auto ParaPANOCSolver<Conf>::operator()(
             });
         };
 
+        // LBFGS DIRECTION IS BOT BEING CORRECTLY CALCULATED!!
         // xₖ₊₁ = xₖ + (1-τ) pₖ + τ qₖ
         auto take_accelerated_step = [&](real_t τ) {
             if (τ == 1) { // → faster quasi-Newton step
@@ -717,9 +716,12 @@ auto ParaPANOCSolver<Conf>::operator()(
             Kokkos::parallel_for(nthrds, [&] (const int i){
                 eval_grad_ψ_k(i, *next, μ, y);
             });
+            Kokkos::fence();
+            next->ψxu = 0;
             Kokkos::parallel_reduce(nthrds, [&](const int i, real_t &ψ_){
-                ψ_ += eval_ψ_k(k, *next, μ);
-            },next->ψxu);
+                ψ_ += eval_ψ_k(i, *next, μ);
+            },next->ψxu); 
+            Kokkos::fence();
         };
 
         // Backtracking line search loop
@@ -731,20 +733,20 @@ auto ParaPANOCSolver<Conf>::operator()(
                 τ_prev = τ;
             } 
 
-            // Calculate ψ(x̂ₖ₊₁)
-            Kokkos::parallel_reduce(nthrds, [&](const int i, real_t &ψ_){
-                ψ_ += eval_ψ_hat_k(i, *next, μ, y);
-            },next->ψxû);
-            Kokkos::fence();
-
             // Calculate x̂ₖ₊₁, pₖ₊₁ 
             Kokkos::parallel_for(nthrds, [&](const int i){
                 eval_prox(i, *next);
             });
             Kokkos::fence();
 
+            // Calculate ψ(x̂ₖ₊₁)
+            next->ψxû = 0;
+            Kokkos::parallel_reduce(nthrds, [&](const int i, real_t &ψ_){
+                ψ_ += eval_ψ_hat_k(i, *next, μ, y);
+            },next->ψxû);
+
             // Quadratic upper bound
-            if (next->L < params.L_max && qub_violated(*next)) {
+            if (next->L < params.L_max && qub_violated(*next)) { 
                 next->γ /= 2;
                 next->L *= 2;
                 τ = τ_init;

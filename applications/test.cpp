@@ -29,7 +29,7 @@ const auto n = problem.get_N() * problem.get_nu(),
 
 m = problem.get_nx()*(problem.get_N()-1),
 
-m2 = problem.get_N() * problem.get_nc() + problem.get_nc_N(),
+m2 = problem.get_N()*problem.get_nc() + problem.get_nc_N(),
 
 nt = problem.get_N(),
 
@@ -45,9 +45,9 @@ problem.get_x_init(xu);
 
 vec g = vec::Ones(m); // constraints g(x,u)=0
 
-vec y = vec::Zero(m); // Lagrange multipliers
+vec y = vec::Ones(m); // Lagrange multipliers
 
-vec y2 = vec::Zero(m2);
+vec y2 = vec::Ones(m2);
 
 vec μ = vec::Ones(m); // Penalty factors
 
@@ -75,11 +75,30 @@ alpaqa::ParaPANOCSolver<config_t> solver{params};
 
 auto stats = solver(problem, {.tolerance = 1e-8}, xu, y, μ, e, g, nt);
 
-alpaqa::ALMParams almparams; almparams.ε = 1e-5; // tolerance
+std::cout<<stats.stepsize_backtracks<<std::endl;
 
-alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver{almparams,{params}};
+// alpaqa::ALMParams almparams; almparams.ε = 1e-4; // tolerance
 
-auto almstats = almsolver(problem, xu, y, nt);
+// alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver{almparams,{params}};
+
+// auto stats = almsolver(problem, xu, y, nt);
+
+// std::cout << "status: " << stats.status << '\n'
+//             << "inner iterations: " << stats.inner.iterations << '\n'
+//             << "outer iterations: " << stats.outer_iterations << '\n'
+//             << "ε = " << stats.ε << '\n'
+//             << "δ = " << stats.δ << '\n'
+//             << "elapsed time:     "
+//             << std::chrono::duration<double>{stats.elapsed_time}.count()
+//             << " s" << '\n'
+//             << "x = " << xu.transpose() << '\n'
+//             << "y = " << y.transpose() << '\n'
+//             << "avg τ = " << (stats.inner.sum_τ / stats.inner.count_τ) << '\n'
+//             << "L-BFGS rejected = " << stats.inner.lbfgs_rejected << '\n'
+//             << "L-BFGS failures = " << stats.inner.lbfgs_failures << '\n'
+//             << "Line search failures = " << stats.inner.linesearch_failures
+//             << '\n'
+//             << std::endl;
 
 Kokkos::finalize();
 
