@@ -82,7 +82,6 @@ class ParaALMSolver {
     // Implementation --------------------------------------------------------
 
 
-
 template <class InnerSolverT>
 typename ParaALMSolver<InnerSolverT>::Stats
 ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_t nt) {
@@ -128,6 +127,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
     vec error_1                      = vec::Constant(m, NaN);
     vec error_2                      = vec::Constant(m, NaN);
     vec g                            = vec::Constant(m, NaN);
+    vec zeros                        = vec::Constant(m, 0.);
     [[maybe_unused]] real_t norm_e_1 = NaN;
     [[maybe_unused]] real_t norm_e_2 = NaN;
 
@@ -149,7 +149,6 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
         Σ.fill(σ);
     }
     
-
     real_t ε                      = params.ε_0;
     [[maybe_unused]] real_t ε_old = NaN;
     real_t Δ                      = params.Δ;
@@ -158,8 +157,6 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
     unsigned num_successful_iters = 0;
 
     for (unsigned int i = 0; i < params.max_iter; ++i) {
-        
-        //eval_proj_multipliers(y, params.M, params.penalty_alm_split);
 
         // Check if we're allowed to lower the penalty factor even further.
         bool out_of_penalty_factor_updates =
@@ -187,8 +184,8 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
         // Call the inner solver to minimize the augmented lagrangian for fixed
         // Lagrange multipliers y.
         auto ps = inner_solver(p, opts, x, y, Σ, error_2, g, nt);
-        // Reset the Lagrange multipliers for the penalty constraints to 0 again.
-        y_penalty.setZero();
+        // Update lagrange multipliers
+        //y += Σ.asDiagonal().inverse() * error_2;
         // Check if the inner solver converged
         bool inner_converged = ps.status == SolverStatus::Converged;
         // Accumulate the inner solver statistics
@@ -197,6 +194,8 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
 
         time_elapsed     = std::chrono::steady_clock::now() - start_time;
         bool out_of_time = time_elapsed > params.max_time;
+        //bool backtrack = true;
+        
         bool backtrack =
             not inner_converged && not overwrite_results && not out_of_time;
 
@@ -208,6 +207,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
             *os << "[\x1b[0;34mALM\x1b[0m]   " << std::setw(5) << i
                 << ": ‖Σ‖ = " << print_real(Σ.norm())
                 << ", ‖y‖ = " << print_real(y.norm())
+                << ", ‖g‖ = " << print_real(g.norm())
                 << ", δ = " << print_real(δ) << ", ε = " << print_real(ps.ε)
                 << ", Δ = " << print_real(Δ) << ", status = " << color
                 << std::setw(13) << ps.status << color_end
@@ -253,9 +253,9 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
             norm_e_2 = std::exchange(norm_e_1, vec_util::norm_inf(error_1));
 
             // Check the termination criteria
-            real_t continuity = (g).norm(); // continuity of PDEs between stages
+            real_t continuity = (g).norm()/real_t(g.size()); // continuity of PDEs between stages
             bool alm_converged =
-                ps.ε <= params.ε && inner_converged && continuity && norm_e_1 <= params.δ;
+                (ps.ε <= params.ε && inner_converged && norm_e_1 <= params.δ) || (continuity <= params.ε);
             bool exit = alm_converged || out_of_iter || out_of_time;
             if (exit) {
                 s.ε                = ps.ε;

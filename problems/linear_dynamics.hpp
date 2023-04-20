@@ -1,18 +1,22 @@
-#include <alpaqa/config/config.hpp>
-#include <alpaqa/inner/panoc-ocp.hpp>
-#include <alpaqa/problem/ocproblem.hpp>
-#include <alpaqa/util/print.hpp>
+#pragma once
 
+#include <alpaqa/config/config.hpp>
+#include <alpaqa/problem/ocproblem.hpp>
+#include <alpaqa/inner/panoc-ocp.hpp>
+#include <alpaqa/util/print.hpp>
 #include <iomanip>
 #include <iostream>
 
-struct MyProblem {
-    USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
+namespace alpaqa{
+
+struct LinearOCP {
+
+ USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
     using Box = alpaqa::Box<config_t>;
 
-    length_t N = 5,      ///< Horizon length
+    length_t N = 2,      ///< Horizon length
         nu     = 1,       ///< Number of inputs
-        nx     = 2,       ///< Number of states
+        nx     = 10,       ///< Number of states
         nh     = nu + nx, ///< Number of stage outputs
         nh_N   = nx,      ///< Number of terminal outputs
         nc     = 0,       ///< Number of stage constraints
@@ -20,7 +24,7 @@ struct MyProblem {
 
     mat A, B;
 
-    MyProblem() : A(nx, nx), B(nx, nu) {
+    LinearOCP() : A(nx, nx), B(nx, nu) {
         A.setIdentity();
         B.setOnes();
     }
@@ -40,8 +44,9 @@ struct MyProblem {
     }
     void get_D(Box &D) const {       
         alpaqa::ScopedMallocAllower ma;
-        D.lowerbound.setConstant(0);
-        D.upperbound.setConstant(0);}
+        D.lowerbound.setConstant(-alpaqa::inf<config_t>);
+        D.upperbound.setConstant(+alpaqa::inf<config_t>);}
+
     void get_D_N(Box &D) const {}
 
     void get_x_init(rvec x_init) const { x_init.setConstant(1.); }
@@ -139,69 +144,4 @@ struct MyProblem {
     }
 };
 
-int main() {
-    USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
-
-    // Problem
-#if 0
-    // Option 1: simply use your own problem class directly, and let the solver
-    //           convert it to a TypeErasedControlProblem for you.
-    Problem problem;
-#elif 0
-    // Option 2: initialize a TypeErasedControlProblem using an instance of your
-    // own problem class, so the solver doesn't have to create a copy of it.
-    alpaqa::TypeErasedControlProblem<config_t> problem{Problem()};
-#elif 0
-    // Option 3: create a TypeErasedControlProblem from your own problem class
-    //           directly, using in-place construction (most efficient).
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<Problem>();
-#else
-    // Option 4: use your own problem class, and wrap it with evaluation
-    //           counters (handy for benchmarking)
-    auto problem = alpaqa::ocproblem_with_counters(MyProblem());
-#endif
-
-    // Problem dimensions
-    const auto n = problem.get_N() * problem.get_nu(),
-               m = problem.get_N() * problem.get_nc() + problem.get_nc_N();
-
-    // Initial guess and other solver inputs
-    vec u = vec::Zero(n); // Inputs (single shooting)
-    vec y = vec::Zero(m); // Lagrange multipliers
-    vec μ = vec::Ones(m); // Penalty factors
-    vec e(m);             // Constraint violation
-
-    // Solver
-    alpaqa::PANOCOCPParams<config_t> params;
-    params.stop_crit      = alpaqa::PANOCStopCrit::ProjGradUnitNorm;
-    params.gn_interval    = 1; //for gn_interval != 1, program throws an exception
-    params.print_interval = 1;
-    alpaqa::PANOCOCPSolver<config_t> solver{params};
-
-    // Solve
-    auto stats = solver(problem, {.tolerance = 1e-8}, u, y, μ, e);
-
-    // Print evaluation counters (if available)
-    [](const auto &problem) {
-        if constexpr (requires { problem.evaluations; })
-            std::cout << '\n' << *problem.evaluations;
-    }(problem);
-
-    // Print statistics
-    auto δ      = e.lpNorm<Eigen::Infinity>();
-    auto time_s = std::chrono::duration<double>(stats.elapsed_time).count();
-    std::cout << '\n'
-              << "solver:  " << solver.get_name() << '\n'
-              << "status:  " << stats.status << '\n'
-              << "ψ = " << alpaqa::float_to_str(stats.final_ψ) << '\n'
-              << "ε = " << alpaqa::float_to_str(stats.ε) << '\n'
-              << "δ = " << alpaqa::float_to_str(δ) << '\n'
-              << "time: " << alpaqa::float_to_str(time_s, 3) << " s\n"
-              << "iter:      " << std::setw(6) << stats.iterations << '\n'
-              << "line search backtrack: " << std::setw(6)
-              << stats.linesearch_backtracks << '\n'
-              << "step size backtrack:   " << std::setw(6)
-              << stats.stepsize_backtracks << '\n'
-              << "solution: ";
-    // alpaqa::print_python(std::cout, u) << std::endl;
 }

@@ -1,7 +1,7 @@
 #include <alpaqa/config/config.hpp>
 #include <Thesis/para-panoc.hpp>
 #include <Thesis/para-alm.hpp>
-#include <Thesis/ocp-funcs.hpp>
+#include <Thesis/linear_dynamics.hpp>
 #include <Kokkos_Core.hpp>
 #include <iostream>
 
@@ -37,68 +37,59 @@ nxu = (problem.get_nx()+problem.get_nu())*(problem.get_N()-1)+problem.get_nx();
 
 // Initial guess and other solver inputs
 
-vec u = vec::Zero(n); // Inputs (single shooting)
-
-vec xu = vec::Ones(nxu); // Inputs (multiple shooting)
-
+vec u  = vec::Zero(n);      // Inputs (single shooting)
+vec xu = vec::Ones(nxu);    // Inputs (multiple shooting)
+vec g  = vec::Ones(m);      // constraints g(x,u)=0
+vec y  = vec::Ones(m);      // Lagrange multipliers
+vec μ  = vec::Ones(m);      // Penalty factors
+vec e(m);                   // Constraint violation
 problem.get_x_init(xu); 
 
-vec g = vec::Ones(m); // constraints g(x,u)=0
 
-vec y = vec::Ones(m); // Lagrange multipliers
 
-vec y2 = vec::Ones(m2);
-
-vec μ = vec::Ones(m); // Penalty factors
-
-vec μ2 = vec::Ones(m2);
-
-vec e(m); // Constraint violation
-
-vec e2(m2);
-
-// Solver
-
+// Solver Configurations 
+// Inner:
 alpaqa::PANOCOCPParams<config_t> params;
-
 params.stop_crit = alpaqa::PANOCStopCrit::ProjGradNorm2;
-
 params.gn_interval = 1;
-
 params.print_interval = 1;
-
-std::cout<<"initial guess x₀: "<<xu.transpose()<<'\n'<<std::endl;
+params.max_iter = 10;
+// Outer:
+alpaqa::ALMParams almparams; 
+almparams.ε = 1e-3; // tolerance;
+almparams.max_iter = 100;
+almparams.print_interval = 1;
 
 // Solve
+alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver{almparams,{params}};
+auto stats = almsolver(problem, xu, y, nt);
 
-alpaqa::ParaPANOCSolver<config_t> solver{params};
+// Print Solution
+std::cout << "status: " << stats.status << '\n'
+            << "inner iterations: " << stats.inner.iterations << '\n'
+            << "outer iterations: " << stats.outer_iterations << '\n'
+            << "ε = " << stats.ε << '\n'
+            << "δ = " << stats.δ << '\n'
+            << "elapsed time:     "
+            << std::chrono::duration<double>{stats.elapsed_time}.count()
+            << " s" << '\n'
+            << "avg τ = " << (stats.inner.sum_τ / stats.inner.count_τ) << '\n'
+            << "L-BFGS rejected = " << stats.inner.lbfgs_rejected << '\n'
+            << "L-BFGS failures = " << stats.inner.lbfgs_failures << '\n'
+            << "Line search failures = " << stats.inner.linesearch_failures
+            << '\n'
+            << std::endl;
 
-auto stats = solver(problem, {.tolerance = 1e-8}, xu, y, μ, e, g, nt);
-
-std::cout<<stats.stepsize_backtracks<<std::endl;
-
-// alpaqa::ALMParams almparams; almparams.ε = 1e-4; // tolerance
-
-// alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver{almparams,{params}};
-
-// auto stats = almsolver(problem, xu, y, nt);
-
-// std::cout << "status: " << stats.status << '\n'
-//             << "inner iterations: " << stats.inner.iterations << '\n'
-//             << "outer iterations: " << stats.outer_iterations << '\n'
-//             << "ε = " << stats.ε << '\n'
-//             << "δ = " << stats.δ << '\n'
-//             << "elapsed time:     "
-//             << std::chrono::duration<double>{stats.elapsed_time}.count()
-//             << " s" << '\n'
-//             << "x = " << xu.transpose() << '\n'
-//             << "y = " << y.transpose() << '\n'
-//             << "avg τ = " << (stats.inner.sum_τ / stats.inner.count_τ) << '\n'
-//             << "L-BFGS rejected = " << stats.inner.lbfgs_rejected << '\n'
-//             << "L-BFGS failures = " << stats.inner.lbfgs_failures << '\n'
-//             << "Line search failures = " << stats.inner.linesearch_failures
-//             << '\n'
-//             << std::endl;
+    for (size_t i = 0; i < problem.get_N(); ++i){
+        std::cout<<"Stage "<<i<<":"<<'\n';
+        if (i < problem.get_N()-1){
+            std::cout<<"x = "<<xu.segment(i*(problem.get_nx()+problem.get_nu()),problem.get_nx()).transpose()<<'\n'
+                     <<"u = "<<xu.segment(i*(problem.get_nx()+problem.get_nu())+problem.get_nx(),problem.get_nu()).transpose()<<'\n'<<std::endl;
+        }
+        else{
+            std::cout<<"x = "<<xu.segment(i*(problem.get_nx()+problem.get_nu()),problem.get_nx()).transpose()<<std::endl;
+        }      
+    }
 
 Kokkos::finalize();
 

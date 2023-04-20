@@ -1,10 +1,10 @@
-add_library(thesis
-"src/Thesis.cpp"
+add_library(thesis 
 
+# solver
 "include/Thesis/Thesis.hpp"
 "include/Thesis/para-panoc.hpp"
-"include/Thesis/ocp-funcs.hpp"
 "include/Thesis/para-alm.hpp"
+"include/Thesis/para-panoc-helpers.hpp"
 )
 
 target_link_libraries(thesis PRIVATE Kokkos::kokkos)

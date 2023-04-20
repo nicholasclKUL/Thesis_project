@@ -8,6 +8,7 @@ option(ENABLE_FANALYZER   "Enable GCC's -fanalyzer flag" Off)
 include(cmake/Warnings.cmake)
 add_warnings_target(warnings ${WARNINGS_AS_ERRORS} ${ENABLE_FANALYZER})
 add_library(thesis::warnings ALIAS warnings)
+add_library(problems::warnings ALIAS warnings)
 
 if (MSVC)
     set(CMAKE_CXX_FLAGS "/utf-8 /Dnot=! /D__PRETTY_FUNCTION__=__FUNCSIG__ ${CMAKE_CXX_FLAGS}")
@@ -18,6 +19,8 @@ find_package(Eigen3 REQUIRED)
 find_package(alpaqa REQUIRED)
 find_package(OpenMP REQUIRED) #add OpenMP::OpenMP<CXX> to the file I am calling it
 find_package(Threads REQUIRED)
+#find_package(casadi REQUIRED)
 
 add_subdirectory(src)
+add_subdirectory(problems)
 add_subdirectory(applications)
