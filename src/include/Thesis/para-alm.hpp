@@ -96,7 +96,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
     auto &&y_penalty = y.topRows(params.penalty_alm_split);
     y_penalty.setZero();
 
-    auto m = (p.get_N()-1)*(p.get_nx());
+    auto m = (p.get_N())*(p.get_nx());
     if (m == 0) { // No general constraints, only box constraints
         Stats s;
         vec Σ(0), error(0);

@@ -27,14 +27,14 @@ int main() {
 
     // Initial guess and other solver inputs
     //SS
-    vec u = vec::Zero(n); // Inputs (single shooting)
+    vec u = vec::Zero(n); // Inputs
     vec y = vec::Zero(m); // Lagrange multipliers
     vec μ = vec::Ones(m); // Penalty factors
     vec e(m);             // Constraint violation
     problem.get_x_init(u);
 
     //MS-Parallel
-    vec xu = vec::Zero(n_ms); // Inputs (single shooting)
+    vec xu = vec::Zero(n_ms);   // Inputs
     vec y_ms = vec::Zero(m_ms); // Lagrange multipliers
     vec μ_ms = vec::Ones(m_ms); // Penalty factors
     vec e_ms(m_ms);             // Constraint violation

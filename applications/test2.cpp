@@ -1,7 +1,7 @@
 #include <alpaqa/config/config.hpp>
 #include <Thesis/para-panoc.hpp>
 #include <Thesis/para-alm.hpp>
-#include <Thesis/nonlinear_example1.hpp>
+#include <nonlinear_example1.hpp>
 #include <Kokkos_Core.hpp>
 #include <iostream>
 
@@ -21,19 +21,17 @@ int main(){
 
 USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
-auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<OCProblem>();
+auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<alpaqa::NonlinearOCP1>();
 
 Kokkos::initialize(Kokkos::InitializationSettings());
 
 const auto n = problem.get_N() * problem.get_nu(),
 
-m = problem.get_nx()*(problem.get_N()-1),
+m = problem.get_nx()*(problem.get_N()),
 
-m2 = problem.get_N()*problem.get_nc() + problem.get_nc_N(),
+nt = problem.get_N()+1,
 
-nt = problem.get_N(),
-
-nxu = (problem.get_nx()+problem.get_nu())*(problem.get_N()-1)+problem.get_nx();
+nxu = (problem.get_nx()+problem.get_nu())*(problem.get_N())+problem.get_nx();
 
 // Initial guess and other solver inputs
 
@@ -49,15 +47,15 @@ problem.get_x_init(xu);
 // Inner:
 alpaqa::PANOCOCPParams<config_t> params;
 params.stop_crit = alpaqa::PANOCStopCrit::ProjGradNorm2;
-params.gn_interval = 1;
+params.gn_interval = 0;
 params.print_interval = 0;
 params.max_iter = 20;
-//params.disable_acceleration;
+params.disable_acceleration = false;
 // Outer:
 alpaqa::ALMParams almparams; 
 //almparams.ε = 1e-7; // tolerance;
-almparams.δ = 1e-7;
-almparams.ε_0 = 1e-7;
+almparams.δ = 1e-3;
+almparams.ε_0 = 1e-3;
 almparams.max_iter = 1000;
 almparams.print_interval = 999;
 

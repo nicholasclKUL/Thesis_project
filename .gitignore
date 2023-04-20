@@ -1,6 +1,7 @@
 installation/
 build/
+benchmark-problems/
 problems/aircraft_optimization.hpp
 problems/tubular_reactor_parallel_reaction.hpp
 problems/nonlinear_example2.hpp
-problems/hanign_chain.hpp
+problems/hanging_chain.hpp
