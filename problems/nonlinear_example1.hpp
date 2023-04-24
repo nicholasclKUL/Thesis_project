@@ -1,8 +1,8 @@
 #pragma once
 
 #include <alpaqa/config/config.hpp>
-#include <alpaqa/problem/ocproblem.hpp>
 #include <alpaqa/inner/panoc-ocp.hpp>
+#include <alpaqa/problem/ocproblem.hpp>
 #include <alpaqa/util/print.hpp>
 #include <iomanip>
 #include <iostream>
@@ -14,9 +14,9 @@ struct NonlinearOCP1 {
     USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
     using Box = alpaqa::Box<config_t>;
 
-    length_t N = 2,      ///< Horizon length
+    length_t N = 5,      ///< Horizon length
         nu     = 1,       ///< Number of inputs
-        nx     = 10,       ///< Number of states
+        nx     = 100,       ///< Number of states
         nh     = nu + nx, ///< Number of stage outputs
         nh_N   = nx,      ///< Number of terminal outputs
         nc     = 0,       ///< Number of stage constraints
@@ -26,7 +26,7 @@ struct NonlinearOCP1 {
 
     NonlinearOCP1() : A(nx, nx), B(nx, nu) {
         A.setIdentity();
-        B.setIdentity();
+        B.setOnes();
     }
 
     [[nodiscard]] length_t get_N() const { return N; }
@@ -134,8 +134,7 @@ struct NonlinearOCP1 {
     }
     [[nodiscard]] length_t get_S_work_size() const { return 0; }
 
-    void eval_proj_multipliers(rvec y, real_t M,
-                               index_t penalty_alm_split) const {}
+    void eval_proj_multipliers(rvec y, real_t M) const {}
 
     void eval_proj_diff_g(crvec z, rvec p) const { p.setZero(); }
 

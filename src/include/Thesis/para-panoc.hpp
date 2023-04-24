@@ -425,7 +425,8 @@ auto ParaPANOCSolver<Conf>::operator()(
 
     auto linesearch_violated = [this](const Iterate &curr,
                                       const Iterate &next) {
-        real_t σ  = params.β * (1 - curr.γ * curr.L) / (2 * curr.γ);
+        real_t β  = params.linesearch_strictness_factor;
+        real_t σ  = β * (1 - curr.γ * curr.L) / (2 * curr.γ);
         real_t φγ = curr.fbe();
         real_t margin = (1 + std::abs(φγ)) * params.linesearch_tolerance_factor;
         return next.fbe() > φγ - σ * curr.pᵀp + margin;
@@ -613,26 +614,6 @@ auto ParaPANOCSolver<Conf>::operator()(
             print_progress_3(*curr, εₖ, τ ,k);
             //print_progress_1(k, curr->fbe(), curr->ψxu, curr->grad_ψ, curr->pᵀp,
             //                 curr->γ, εₖ);
-        if (progress_cb) {
-            //ScopedMallocAllower ma;
-            alpaqa::detail::Timed t{s.time_progress_callback};
-            progress_cb({.k             = k,
-                         .xu            = curr->xu,
-                         .p             = curr->p,
-                         .norm_sq_p     = curr->pᵀp,
-                         .x̂u            = curr->xû,
-                         .φγ            = curr->fbe(),
-                         .ψ             = curr->ψxu,
-                         .grad_ψ        = curr->grad_ψ,
-                         .ψ_hat         = curr->ψxû,
-                         .q             = q,
-                         .L             = curr->L,
-                         .γ             = curr->γ,
-                         .τ             = τ,
-                         .ε             = εₖ,
-                         .problem       = problem,
-                         .params        = params});
-        }
 
         // Return solution -----------------------------------------------------
 
@@ -673,8 +654,10 @@ auto ParaPANOCSolver<Conf>::operator()(
             τ_init = 0;
         }
         if (k > 0) {
-            τ_init = 1;
-            lbfgs.apply(q, curr->γ);
+            q = curr->p;
+            τ_init = lbfgs.apply(q, curr->γ)
+                    ? 1
+                    : 0; // WE CANNOT USE .apply HERE!!! OUR L-BFGS IS NOT BEING UPDATED!!!!!!!!
         }
         // Make sure quasi-Newton step is valid
         if (not q.allFinite()) {
@@ -734,7 +717,7 @@ auto ParaPANOCSolver<Conf>::operator()(
 
             // Recompute step only if τ changed
             if (τ != τ_prev) {
-                (τ != 0) && (params.disable_acceleration == false)? take_accelerated_step(τ) : take_safe_step();
+                (τ != 0) && (params.disable_acceleration == false) ? take_accelerated_step(τ) : take_safe_step();
                 τ_prev = τ;
             } 
 
@@ -750,6 +733,7 @@ auto ParaPANOCSolver<Conf>::operator()(
             Kokkos::parallel_reduce("ψ(xûₖ₊₁)", nthrds, [&](const int i, real_t &ψ_){
                 ψ_ += eval_ψ_hat_k(i, *next, μ, y);
             },next->ψxû);
+            Kokkos::fence();
 
             // Quadratic upper bound
             if (next->L < params.L_max && qub_violated(*next)) { 
@@ -763,7 +747,7 @@ auto ParaPANOCSolver<Conf>::operator()(
             // Line search condition
             if (τ > 0 && linesearch_violated(*curr, *next)) {
                 τ /= 2;
-                if (τ < params.τ_min)
+                if (τ < params.min_linesearch_coefficient)
                     τ = 0;
                 ++s.linesearch_backtracks;
                 continue;
@@ -788,11 +772,10 @@ auto ParaPANOCSolver<Conf>::operator()(
             lbfgs.reset();
         } 
         s.lbfgs_rejected += not lbfgs.update(
-                curr->xu, next->xu, curr->grad_ψ, next->grad_ψ,
-                LBFGS<config_t>::Sign::Positive, true);
+                curr->xu, next->xu, curr->p, next->p,
+                LBFGS<config_t>::Sign::Negative);
 
         // Advance step --------------------------------------------------------
-        //std::cout<<curr->grad_ψ<<'\n'<<std::endl;
         std::swap(curr, next);
         ++k; 
         xu = curr->xu;

@@ -92,10 +92,6 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
     // Check the problem dimensions etc.
     p.check();
 
-    // Lagrange multipliers corresponding to penalty constraints are always 0. PENALTY CONSTRAINTS??
-    auto &&y_penalty = y.topRows(params.penalty_alm_split);
-    y_penalty.setZero();
-
     auto m = (p.get_N())*(p.get_nx());
     if (m == 0) { // No general constraints, only box constraints
         Stats s;
@@ -104,8 +100,9 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
         InnerSolveOptions<config_t> opts{
             .always_overwrite_results = true,
             .max_time                 = params.max_time,
-            .tolerance                = params.ε,
+            .tolerance                = params.tolerance,
             .os                       = os,
+            .check                    = false,
         };
         auto ps              = inner_solver(p, opts, x, y, Σ, error, g, nt);
         bool inner_converged = ps.status == SolverStatus::Converged;
@@ -139,20 +136,18 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
     Stats s;
 
     // Initialize the penalty weights
-    if (params.Σ_0 > 0) {
-        Σ.fill(params.Σ_0);
+    if (params.initial_penalty > 0) {
+        Σ.fill(params.initial_penalty);
     }
     // Initial penalty weights from problem
     else {
-        real_t σ = std::min(σ, params.Σ_max);
-        σ = std::max(σ, params.Σ_min);
-        Σ.fill(σ);
+        Helpers::initialize_penalty(p, params, x, Σ);
     }
     
-    real_t ε                      = params.ε_0;
+    real_t ε                      = params.initial_tolerance;
     [[maybe_unused]] real_t ε_old = NaN;
-    real_t Δ                      = params.Δ;
-    real_t ρ                      = params.ρ;
+    real_t Δ                      = params.penalty_update_factor;
+    real_t ρ                      = params.tolerance_update_factor;
 
     unsigned num_successful_iters = 0;
 
@@ -211,8 +206,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
                 << ", δ = " << print_real(δ) << ", ε = " << print_real(ps.ε)
                 << ", Δ = " << print_real(Δ) << ", status = " << color
                 << std::setw(13) << ps.status << color_end
-                << ", iter = " << std::setw(13) << ps.iterations
-                << std::endl; // Flush for Python buffering
+                << ", iter = " << ps.iterations << std::endl; // Flush for Python buffering
         }
 
         if (ps.status == SolverStatus::Interrupted) {
@@ -230,19 +224,20 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
             if (num_successful_iters > 0) {
                 // We have a previous Σ and error
                 // Recompute penalty with smaller Δ
-                Δ = std::fmax(params.Δ_min, Δ * params.Δ_lower);
+                Δ = std::fmax(params.min_penalty_update_factor,
+                              Δ * params.penalty_update_factor_lower);
                 Helpers::update_penalty_weights(params, Δ, false, error_1,
                                                 error_2, norm_e_1, norm_e_2,
                                                 Σ_old, Σ, true);
                 // Recompute the primal tolerance with larger ρ
                 ρ = std::fmin(params.ρ_max, ρ * params.ρ_increase);
-                ε = std::fmax(ρ * ε_old, params.ε);
+                ε = std::fmax(ρ * ε_old, params.tolerance);
                 ++s.penalty_reduced;
             } else {
                 // We don't have a previous Σ, simply lower the current Σ and
                 // increase ε
-                Σ *= params.Σ_0_lower;
-                ε *= params.ε_0_increase;
+                Σ *= params.initial_penalty_lower;
+                ε *= params.initial_tolerance_increase;
                 ++s.initial_penalty_reduced;
             }
         }
@@ -255,7 +250,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
             // Check the termination criteria
             real_t continuity = (g).norm()/real_t(g.size()); // continuity of PDEs between stages
             bool alm_converged =
-                (ps.ε <= params.ε && inner_converged && norm_e_1 <= params.δ) || (continuity <= params.ε);
+                (ps.ε <= params.tolerance && inner_converged && norm_e_1 <= params.dual_tolerance) || (continuity <= params.tolerance);
             bool exit = alm_converged || out_of_iter || out_of_time;
             if (exit) {
                 s.ε                = ps.ε;
@@ -277,7 +272,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
                 params, Δ, num_successful_iters == 0, error_1, error_2,
                 norm_e_1, norm_e_2, Σ_old, Σ, true);
             // Lower the primal tolerance for the inner solver.
-            ε_old = std::exchange(ε, std::fmax(ρ * ε, params.ε));
+            ε_old = std::exchange(ε, std::fmax(ρ * ε, params.tolerance));
             ++num_successful_iters;
         }
     }

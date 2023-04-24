@@ -14,9 +14,9 @@ struct LinearOCP {
  USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
     using Box = alpaqa::Box<config_t>;
 
-    length_t N = 2,      ///< Horizon length
+    length_t N = 20,      ///< Horizon length
         nu     = 1,       ///< Number of inputs
-        nx     = 10,       ///< Number of states
+        nx     = 100,       ///< Number of states
         nh     = nu + nx, ///< Number of stage outputs
         nh_N   = nx,      ///< Number of terminal outputs
         nc     = 0,       ///< Number of stage constraints
@@ -42,38 +42,43 @@ struct LinearOCP {
         U.lowerbound.setConstant(-2);
         U.upperbound.setConstant(+2);
     }
-    void get_D(Box &D) const {       
+    void get_D([[maybe_unused]] Box &D) const {       
         alpaqa::ScopedMallocAllower ma;
         D.lowerbound.setConstant(-alpaqa::inf<config_t>);
         D.upperbound.setConstant(+alpaqa::inf<config_t>);}
 
-    void get_D_N(Box &D) const {}
+    void get_D_N([[maybe_unused]] Box &D) const {}
 
     void get_x_init(rvec x_init) const { x_init.setConstant(1.); }
 
-    void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const {
+    void eval_f([[maybe_unused]] index_t timestep, 
+                crvec x, crvec u, rvec fxu) const {
         alpaqa::ScopedMallocAllower ma;
         fxu.noalias() = A * x + B * u;
     }
-    void eval_jac_f(index_t timestep, crvec x, crvec u, rmat J_fxu) const {
+    void eval_jac_f([[maybe_unused]] index_t timestep,
+                    [[maybe_unused]] crvec x,
+                    [[maybe_unused]] crvec u, rmat J_fxu) const {
         alpaqa::ScopedMallocAllower ma;
         J_fxu.leftCols(nx).noalias()  = A;
         J_fxu.rightCols(nu).noalias() = B;
     }
-    void eval_grad_f_prod(index_t timestep, crvec x, crvec u, crvec p,
+    void eval_grad_f_prod([[maybe_unused]] index_t timestep, 
+                          [[maybe_unused]] crvec x,
+                          [[maybe_unused]] crvec u, crvec p,
                           rvec grad_fxu_p) const {
         alpaqa::ScopedMallocAllower ma;
         grad_fxu_p.topRows(nx).noalias()    = A.transpose() * p;
         grad_fxu_p.bottomRows(nu).noalias() = B.transpose() * p;
     }
-    void eval_h(index_t timestep, crvec x, crvec u, rvec h) const {
+    void eval_h([[maybe_unused]] index_t timestep, crvec x, crvec u, rvec h) const {
         alpaqa::ScopedMallocAllower ma;
         h.topRows(nx)    = x;
         h.bottomRows(nu) = u;
     }
     void eval_h_N(crvec x, rvec h) const { h = x; }
 
-    [[nodiscard]] real_t eval_l(index_t timestep, crvec h) const {
+    [[nodiscard]] real_t eval_l([[maybe_unused]] index_t timestep, crvec h) const {
         alpaqa::ScopedMallocAllower ma;
         return 0.5 * h.squaredNorm();
     }
@@ -81,47 +86,64 @@ struct LinearOCP {
         alpaqa::ScopedMallocAllower ma;
         return 5. * h.squaredNorm();
     }
-    void eval_qr(index_t timestep, crvec xu, crvec h, rvec qr) const {
+    void eval_qr([[maybe_unused]] index_t timestep, 
+                 [[maybe_unused]] crvec xu, crvec h, rvec qr) const {
         alpaqa::ScopedMallocAllower ma;
         auto Jh_xu    = mat::Identity(nx + nu, nx + nu);
         auto &&grad_l = h;
         qr            = Jh_xu.transpose() * grad_l;
     }
-    void eval_q_N(crvec x, crvec h, rvec q) const {
+    void eval_q_N([[maybe_unused]] crvec x, crvec h, rvec q) const {
         alpaqa::ScopedMallocAllower ma;
         auto Jh_x     = mat::Identity(nx, nx);
         auto &&grad_l = 10 * h;
         q             = Jh_x.transpose() * grad_l;
     }
-    void eval_add_Q(index_t timestep, crvec xu, crvec h, rmat Q) const {
+    void eval_add_Q([[maybe_unused]] index_t timestep, 
+                    [[maybe_unused]] crvec xu, 
+                    [[maybe_unused]] crvec h, rmat Q) const {
         Q += mat::Identity(nx, nx);
     }
-    void eval_add_Q_N(crvec x, crvec h, rmat Q) const {
+    void eval_add_Q_N([[maybe_unused]] crvec x,
+                      [[maybe_unused]] crvec h, rmat Q) const {
         alpaqa::ScopedMallocAllower ma;
         Q += 10 * mat::Identity(nx, nx);
     }
-    void eval_add_R_masked(index_t timestep, crvec xu, crvec h, crindexvec mask,
-                           rmat R, rvec work) const {
+    void eval_add_R_masked([[maybe_unused]] index_t timestep,
+                           [[maybe_unused]] crvec xu, 
+                           [[maybe_unused]] crvec h, crindexvec mask,
+                           rmat R, 
+                           [[maybe_unused]] rvec work) const {
         alpaqa::ScopedMallocAllower ma;
         const auto n = mask.size();
         R.noalias() += mat::Identity(n, n);
     }
-    void eval_add_S_masked(index_t timestep, crvec xu, crvec h, crindexvec mask,
-                           rmat S, rvec work) const {
+    void eval_add_S_masked([[maybe_unused]] index_t timestep, 
+                           [[maybe_unused]] crvec xu, 
+                           [[maybe_unused]] crvec h, crindexvec mask,
+                           rmat S, 
+                           [[maybe_unused]] rvec work) const {
         // Mixed derivatives are zero
         // S.noalias() += (...);
     }
-    void eval_add_R_prod_masked(index_t timestep, crvec xu, crvec h,
+    void eval_add_R_prod_masked([[maybe_unused]] index_t timestep,
+                                [[maybe_unused]] crvec xu, 
+                                [[maybe_unused]] crvec h,
                                 crindexvec mask_J, crindexvec mask_K, crvec v,
-                                rvec out, rvec work) const {
+                                rvec out, 
+                                [[maybe_unused]] rvec work) const {
         // The following has no effect because R is diagonal, and J ∩ K = ∅
         alpaqa::ScopedMallocAllower ma;
         auto R = mat::Identity(nu, nu);
         out.noalias() += R(mask_J, mask_K) * v(mask_K);
     }
-    void eval_add_S_prod_masked(index_t timestep, crvec xu, crvec h,
-                                crindexvec mask_K, crvec v, rvec out,
-                                rvec work) const {
+    void eval_add_S_prod_masked([[maybe_unused]] index_t timestep,
+                                [[maybe_unused]] crvec xu, 
+                                [[maybe_unused]] crvec h,
+                                [[maybe_unused]] crindexvec mask_K, 
+                                [[maybe_unused]] crvec v, 
+                                [[maybe_unused]] rvec out,
+                                [[maybe_unused]] rvec work) const {
         // Mixed derivatives are zero
         // using Eigen::indexing::all;
         // auto Sᵀ = (...);
@@ -134,10 +156,11 @@ struct LinearOCP {
     }
     [[nodiscard]] length_t get_S_work_size() const { return 0; }
 
-    void eval_proj_multipliers(rvec y, real_t M,
-                               index_t penalty_alm_split) const {}
+    void eval_proj_multipliers([[maybe_unused]] rvec y, 
+                               [[maybe_unused]] real_t M) const {}
 
-    void eval_proj_diff_g(crvec z, rvec p) const { p.setZero(); }
+    void eval_proj_diff_g([[maybe_unused]] crvec z, 
+                          [[maybe_unused]] rvec p) const { p.setZero(); }
 
     void check() const {
         // You could do some sanity checks here

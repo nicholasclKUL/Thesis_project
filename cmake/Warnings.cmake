@@ -15,6 +15,9 @@ function(add_warnings_target tgt_name warnings_as_errors with_analyzer)
         -Wuninitialized
         -Wno-missing-braces
         -fopenmp
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        -fPIC 
+        -fPIE
     )
     # GCC
     set(GCC_WARNINGS

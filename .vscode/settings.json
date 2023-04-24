@@ -80,6 +80,7 @@
         "variant": "cpp",
         "charconv": "cpp",
         "*.inc": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "jacobi": "cpp"
     },
 }
