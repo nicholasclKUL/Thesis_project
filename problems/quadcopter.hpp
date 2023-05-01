@@ -7,41 +7,43 @@
 #include <iostream>
 #include <functional>
 
-struct HangingChain{
+//dynamic model described in https://www.codeproject.com/Articles/5335232/Optimal-Control-of-a-Quadcopter#l2
+
+struct Quadcopter{
 
   USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
   using Box = alpaqa::Box<config_t>;
 
-  // Hanging chain parameters:
-  real_t Ts             = 0.01;
-  length_t N_balls      = 5;      ///< Number of balls
-  real_t β              = 25;
-  real_t γ              = 1;
-  real_t δ              = 0.01;
-  real_t m              = 0.03;   ///< mass
-  real_t D              = 0.1;    ///< spring constant
-  real_t L              = 0.033;  ///< spring length
-  real_t v_max          = 1;      ///< maximum actuator velocity
-  real_t g_grav         = 9.81;   ///< Gravitational acceleration       [m/s²]
-  real_t x_ref          = 0.3;    ///< desired position of x_N
-
-  length_t N = 50,                     ///< Horizon length
-          nu = 1,                     ///< Number of inputs
-          nx = (N_balls * 2)-2,       ///< Number of states : x_0 to x_N and v_0 to v_N,
-                                        // *remember f(x_0) = f(v_0) = f(v_N) = 0    
+  // OCP parameters:
+  length_t N = 20,                    ///< Horizon length
+          nu = 4,                     ///< Number of inputs
+          nx = 12,                    ///< Number of states  
           nh = nu + nx,               ///< Number of stage outputs
         nh_N = nx,                    ///< Number of terminal outputs
           nc = 0,                     ///< Number of stage constraints
         nc_N = 0,                     ///< Number of terminal constraints
            n = ((nx + nu) * N) - nu;  ///< Total number of decision variables 
 
+  // Dynamics and discretization parameters:
+  real_t Ts = 1/real_t(N),          ///< Discretization step length
+         g  = 9.81,                     
+         M  = 0.65,                 
+         I  = 0.23,
+         Jx = 7.5e-3,
+         Jy = 7.5e-3,
+         Jz = 1.3e-2,
+
+         a1 = (Jy-Jz)/Jx,
+         a2 = (Jz-Jx)/Jy,
+         a3 = (Jx-Jy)/Jz,
+         b1 = I/Jx,
+         b2 = I/Jy,
+         b3 = I/Jz;
+
   mat A, B;
 
-  HangingChain() : A(nx, nx), B(nx, nu) {
-    A.setZero();
-    B.setZero();
-  }
+  Quadcopter() : A(nx, nx), B(nx, nu) {}
 
   [[nodiscard]] length_t get_N() const { return N; }
   [[nodiscard]] length_t get_nu() const { return nu; }
@@ -52,8 +54,8 @@ struct HangingChain{
   [[nodiscard]] length_t get_nc_N() const { return nc_N; }
 
   void get_U(Box &U) const {
-    U.lowerbound.setConstant(-1);
-    U.upperbound.setConstant(+1);
+    U.lowerbound.setConstant(-alpaqa::inf<config_t>);
+    U.upperbound.setConstant(+alpaqa::inf<config_t>);
   }
 
   void get_D(Box &D) const {    
@@ -63,86 +65,138 @@ struct HangingChain{
 
   void get_D_N(Box &D) const {}
 
-  void get_x_init(rvec x_init) const { 
-    real_t Δ = .01;
-    real_t k = 0;
-    for (index_t i = 0; i < n; ++i){
-      x_init(i) = 0.01 + k * Δ;
-      ++k;
-      if (k == real_t(nh)){
-        k = 0;
-      }
-    } 
-    std::cout<<x_init.transpose()<<std::endl;
-  }
+  void get_x_init(rvec x_init) const { x_init.setConstant(1.); }
 
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const { 
-    for (index_t i = 0; i < nx; ++i){
-      if (i < nx/2){
-        if (i == nx/2 - 1){
-          fxu(i) = x(i) + Ts*u(0);
-        }
-        else{
-          fxu(i) = x(i) + Ts*x((nx/2)+i);
-        }   
-      }
-      else{
-        if (i == nx/2){
-          auto F1 = D * (1-(L/std::abs(x(i-nx/2)))) * (x(i-nx/2));
-          auto F2 = D * (1-(L/std::abs(x(i-nx/2)-x(i+1-nx/2)))) * (x(i+1-nx/2)-x(i-nx/2));
-          fxu(i) = x(i) + Ts * (((1/m) * (F2-F1)) + g_grav);
-        }
-        else if (i == nx-1){
-          auto F1 = D * (1-(L/std::abs(x(i-nx/2)-x(i-1-nx/2)))) * (x(i-nx/2)-x(i-1-nx/2));
-          fxu(i) = x(i) + Ts * (((1/m) * (-F1)) + g_grav);
-        }
-        else{
-          auto F1 = D * (1-(L/std::abs(x(i-nx/2)-x(i-1-nx/2)))) * (x(i-nx/2)-x(i-1-nx/2));
-          auto F2 = D * (1-(L/std::abs(x(i-nx/2)-x(i+1-nx/2)))) * (x(i+1-nx/2)-x(i-nx/2));
-          fxu(i) = x(i) + Ts * (((1/m) * (F2-F1)) + g_grav);
-        }
-      }
-      fxu(0) = 0;
-    };
+    alpaqa::ScopedMallocAllower ma;
+
+    fxu(0) = x(0) + Ts * x(1);
+    fxu(1) = x(1) + Ts * (a1*x(3)*x(5) + b1*u(1));
+    fxu(2) = x(2) + Ts * x(3);    
+    fxu(3) = x(3) + Ts * (a2*x(1)*x(5) + b2*u(2));
+    fxu(4) = x(4) + Ts * x(5);
+    fxu(5) = x(5) + Ts * (a3*x(1)*x(3) + b1*u(3));
+    fxu(6) = x(6) + Ts * x(7);
+    fxu(7) = x(7) + Ts * (cos(x(0))*sin(x(2))*cos(x(4)) + sin(x(0))*sin(x(4))) * u(0) / M;
+    fxu(8) = x(8) + Ts * x(9);
+    fxu(9) = x(9) + Ts * (cos(x(0))*sin(x(2))*sin(x(4)) - sin(x(0))*cos(x(4))) * u(0) / M;
+    fxu(10) = x(10) + Ts * x(11);
+    fxu(11) = x(11) + Ts * (cos(x(0))*cos(x(2))) * u(0) / (M-g);
   } // *discretized using Explicit Euler
 
   void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
-    Jfxu.setConstant(0.);
+    alpaqa::ScopedMallocAllower ma;
 
-    //Jfxu : rows = (2*N_balls) ; col = (2*N_balls + 1)
+    // "self"-derivatives
+    Jfxu.setIdentity();
     
-    //filling lower left corner
-    //dx_{k-1}
-    Jfxu.block(nx/2+1,0,nx/2-1,nx/2-1).setIdentity();     
-    //dx_{k},dx_{k+1} 
-    for (index_t i = 1; i < nx/2-1; ++i) {
-      Jfxu(i+nx/2,i)   = 2 * ((std::abs(x(i)-x(i-1))) - 1);
-      Jfxu(i+nx/2,i+1) = (1 - (2*L/std::abs(x(i+1)-x(i))));
-    }
-    Jfxu *= (D/m);
-        
-    //filling upper right corner
-    Jfxu.block(0,nx/2,nx/2,nx/2).setIdentity();
-    Jfxu(nx/2-1,nx) = 1;
+    // dx1/dx
+    Jfxu(0,1) = Ts;
+    // dx2/dx
+    Jfxu(1,3) = Ts * (a1*x(5));   
+    Jfxu(1,5) = Ts * (a1*x(3));
+    // dx3/dx
+    Jfxu(2,3) = Ts;
+    // dx4/dx
+    Jfxu(3,1) = Ts * (a2*x(5));    
+    Jfxu(3,5) = Ts * (a2*x(1));
+    // dx5/dx
+    Jfxu(4,5) = Ts;
+    // dx6/dx
+    Jfxu(5,1) = Ts * (a3*x(3));    
+    Jfxu(5,3) = Ts * (a3*x(1));
+    // dx7/dx
+    Jfxu(6,7) = Ts;
+    // dx8/dx
+    Jfxu(7,0) = Ts * (-sin(x(0))*sin(x(2))*cos(x(4)) + cos(x(0))*sin(x(4))) * u(0) / M;    
+    Jfxu(7,2) = Ts * (cos(x(0))*cos(x(2))*cos(x(4))) * u(0) / M;    
+    Jfxu(7,4) = Ts * (-cos(x(0))*sin(x(4))*sin(x(2)) + sin(x(0))*cos(x(4))) * u(0) / M;
+    // dx9/dx
+    Jfxu(8,9) = Ts;
+    // dx10/dx
+    Jfxu(9,0) = Ts * (-sin(x(0))*sin(x(2))*sin(x(4)) - cos(x(0))*cos(x(4))) * u(0) / M;    
+    Jfxu(9,2) = Ts * (cos(x(2))*cos(x(0))*sin(x(4))) * u(0) / M;    
+    Jfxu(9,4) = Ts * (cos(x(4))*cos(x(0))*sin(x(2)) + sin(x(4))*sin(x(0))) * u(0) / M;
+    // dx11/dx
+    Jfxu(10,11) = Ts;
+    // dx12/dx
+    Jfxu(11,0) = Ts * (-sin(x(0))*cos(x(2))) * u(0) / (M-g);    
+    Jfxu(11,2) = Ts * (-sin(x(2))*cos(x(0))) * u(0) / (M-g);   
+    
+    // dx2/du
+    Jfxu(1,13) = Ts * b1;
+    // dx4/du
+    Jfxu(3,14) = Ts * b2;
+    // dx6/du
+    Jfxu(5,15) = Ts * b3;
+    // dx8/du
+    Jfxu(7,12) = Ts * (cos(x(0))*sin(x(2))*cos(x(4)) + sin(x(0))*sin(x(4))) / M;
+    // dx10/du
+    Jfxu(9,12) = Ts * (cos(x(0))*sin(x(2))*sin(x(4)) - sin(x(0))*cos(x(4))) / M;
+    // dx12/du
+    Jfxu(11,12) = Ts * (cos(x(0))*cos(x(2))) / (M-g);
 
-    //setting the derivatives wrt to x_0 and v_0 equals to 0  
-    Jfxu.row(0).setConstant(0.);
-    Jfxu.col(0).setConstant(0.);
-    Jfxu.row(nx/2).setConstant(0.);
-    Jfxu.col(nx/2).setConstant(0.);
-    Jfxu.row(nx-1).setConstant(0.);
-    Jfxu.col(nx-1).setConstant(0.);
-
-    //std::cout<<Jfxu.size()<<std::endl;
   }
 
   void eval_grad_f_prod(index_t timestep, crvec x, crvec u, crvec p,
                         rvec grad_fxu_p) const {
-    grad_fxu_p.topRows(nx).noalias() = A.transpose() * p;
-    grad_fxu_p.bottomRows(nu).noalias() = B.transpose() * p;
+    alpaqa::ScopedMallocAllower ma;
+
+    mat Jfxu(nx,nx+nu); Jfxu.setZero();
+    
+    // "self"-derivatives
+    Jfxu.setIdentity();
+    
+    // dx1/dx
+    Jfxu(0,1) = Ts;
+    // dx2/dx
+    Jfxu(1,3) = Ts * (a1*x(5));   
+    Jfxu(1,5) = Ts * (a1*x(3));
+    // dx3/dx
+    Jfxu(2,3) = Ts;
+    // dx4/dx
+    Jfxu(3,1) = Ts * (a2*x(5));    
+    Jfxu(3,5) = Ts * (a2*x(1));
+    // dx5/dx
+    Jfxu(4,5) = Ts;
+    // dx6/dx
+    Jfxu(5,1) = Ts * (a3*x(3));    
+    Jfxu(5,3) = Ts * (a3*x(1));
+    // dx7/dx
+    Jfxu(6,7) = Ts;
+    // dx8/dx
+    Jfxu(7,0) = Ts * (-sin(x(0))*sin(x(2))*cos(x(4)) + cos(x(0))*sin(x(4))) * u(0) / M;    
+    Jfxu(7,2) = Ts * (cos(x(0))*cos(x(2))*cos(x(4))) * u(0) / M;    
+    Jfxu(7,4) = Ts * (-cos(x(0))*sin(x(4))*sin(x(2)) + sin(x(0))*cos(x(4))) * u(0) / M;
+    // dx9/dx
+    Jfxu(8,9) = Ts;
+    // dx10/dx
+    Jfxu(9,0) = Ts * (-sin(x(0))*sin(x(2))*sin(x(4)) - cos(x(0))*cos(x(4))) * u(0) / M;    
+    Jfxu(9,2) = Ts * (cos(x(2))*cos(x(0))*sin(x(4))) * u(0) / M;    
+    Jfxu(9,4) = Ts * (cos(x(4))*cos(x(0))*sin(x(2)) + sin(x(4))*sin(x(0))) * u(0) / M;
+    // dx11/dx
+    Jfxu(10,11) = Ts;
+    // dx12/dx
+    Jfxu(11,0) = Ts * (-sin(x(0))*cos(x(2))) * u(0) / (M-g);    
+    Jfxu(11,2) = Ts * (-sin(x(2))*cos(x(0))) * u(0) / (M-g);   
+    
+    // dx2/du
+    Jfxu(1,13) = Ts * b1;
+    // dx4/du
+    Jfxu(3,14) = Ts * b2;
+    // dx6/du
+    Jfxu(5,15) = Ts * b3;
+    // dx8/du
+    Jfxu(7,12) = Ts * (cos(x(0))*sin(x(2))*cos(x(4)) + sin(x(0))*sin(x(4))) / M;
+    // dx10/du
+    Jfxu(9,12) = Ts * (cos(x(0))*sin(x(2))*sin(x(4)) - sin(x(0))*cos(x(4))) / M;
+    // dx12/du
+    Jfxu(11,12) = Ts * (cos(x(0))*cos(x(2))) / (M-g);
+
+    grad_fxu_p.noalias() = Jfxu.transpose() * p;
   }
 
-   void eval_h([[maybe_unused]] index_t timestep, crvec x, crvec u, rvec h) const {
+    void eval_h([[maybe_unused]] index_t timestep, crvec x, crvec u, rvec h) const {
         alpaqa::ScopedMallocAllower ma;
         h.topRows(nx)    = x;
         h.bottomRows(nu) = u;
@@ -173,12 +227,15 @@ struct HangingChain{
     void eval_add_Q([[maybe_unused]] index_t timestep, 
                     [[maybe_unused]] crvec xu, 
                     [[maybe_unused]] crvec h, rmat Q) const {
-        Q += mat::Identity(nx, nx);
+        alpaqa::ScopedMallocAllower ma;
+        auto Jh_xu    = mat::Identity(nx + nu, nx + nu);
+        Q.noalias()   = Jh_xu.transpose() * Jh_xu;
     }
     void eval_add_Q_N([[maybe_unused]] crvec x,
                       [[maybe_unused]] crvec h, rmat Q) const {
         alpaqa::ScopedMallocAllower ma;
-        Q += 10 * mat::Identity(nx, nx);
+        auto Jh_x     = mat::Identity(nx, nx);
+        Q.noalias()   = Jh_x.transpose() * Jh_x;
     }
     void eval_add_R_masked([[maybe_unused]] index_t timestep,
                            [[maybe_unused]] crvec xu, 
@@ -236,5 +293,5 @@ struct HangingChain{
     void check() const {
         // You could do some sanity checks here
     }
-};
 
+};

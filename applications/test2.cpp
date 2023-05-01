@@ -1,6 +1,6 @@
 #include <alpaqa/config/config.hpp>
-#include <Thesis/para-panoc.hpp>
-#include <Thesis/para-alm.hpp>
+#include <thesis/para-panoc.hpp>
+#include <thesis/para-alm.hpp>
 #include <nonlinear_example1.hpp>
 #include <linear_dynamics.hpp>
 #include <Kokkos_Core.hpp>
@@ -25,7 +25,7 @@ auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<alpaqa::LinearOC
 
 Kokkos::initialize(Kokkos::InitializationSettings());
 
-const auto  n = problem.get_N() * problem.get_nu(),
+const auto  n = problem.get_N()*problem.get_nu(),
             m = problem.get_nx()*(problem.get_N()),
             nt = problem.get_N()+1,
             nxu = (problem.get_nx()+problem.get_nu())*(problem.get_N())+problem.get_nx();

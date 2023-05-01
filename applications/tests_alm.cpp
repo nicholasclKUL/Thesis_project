@@ -9,10 +9,14 @@
 
 #include <Kokkos_Core.hpp>
 
-#include <Thesis/para-alm.hpp>
-#include <Thesis/para-panoc.hpp>
+#include <thesis/para-alm.hpp>
+#include <thesis/para-panoc.hpp>
+#include <thesis/printing.hpp>
+
 #include <nonlinear_example1.hpp>
 #include <linear_dynamics.hpp>
+#include <hanging_chain.hpp>
+#include <quadcopter.hpp>
 
 #include <iomanip>
 #include <iostream>
@@ -23,7 +27,7 @@
 int main() {
     USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
-    alpaqa::ControlProblemWithCounters<alpaqa::LinearOCP> problem;
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<LinearOCP>();
 
     // Problem dimensions
     //SS
@@ -54,7 +58,7 @@ int main() {
     // Inner:
     alpaqa::PANOCOCPParams<config_t> params;
     params.stop_crit = alpaqa::PANOCStopCrit::ProjGradNorm2;
-    params.gn_interval = 0;
+    params.gn_interval = 5;
     params.print_interval = 0;
     params.max_iter = 10000;
     params.disable_acceleration = false;
@@ -70,20 +74,13 @@ int main() {
     Kokkos::initialize(Kokkos::InitializationSettings());
     auto stats_ms = almsolver_ms(problem, xu, y_ms, nt);
     Kokkos::finalize();
+    printing::print_stats_outer(stats_ms);
+    printing::print_solution(problem, xu);
 
     //MS
     alpaqa::ALMSolver<alpaqa::PANOCOCPSolver<config_t>> almsolver_ss{almparams,{params}};
     auto stats_ss = almsolver_ss(problem, x, y);
+    printing::print_stats_outer(stats_ss);
+    printing::print_solution_ss(problem, x);
 
-    auto time_s = std::chrono::duration<double>(stats_ss.elapsed_time).count();
-    auto time_m = std::chrono::duration<double>(stats_ms.elapsed_time).count();
-
-    std::cout<<"Multiple-Shooting"<<'\n'
-    <<"inner iterations: "<<stats_ms.inner.iterations<<'\n'
-    <<"outer iterations: "<<stats_ms.outer_iterations<<'\n'
-    <<"elapsed time:     "<<alpaqa::float_to_str(time_m, 3)<<std::endl;
-    std::cout<<"Single-Shooting"<<'\n'
-    <<"inner iterations: "<<stats_ss.inner.iterations<<'\n'
-    <<"outer iterations: "<<stats_ss.outer_iterations<<'\n'
-    <<"elapsed time:     "<<alpaqa::float_to_str(time_s, 3)<<std::endl;
 }

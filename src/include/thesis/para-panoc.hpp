@@ -7,6 +7,7 @@
 #include <alpaqa/implementation/inner/panoc.tpp>
 #include <alpaqa/implementation/inner/panoc-ocp.tpp>
 #include <alpaqa/implementation/inner/panoc-helpers.tpp>
+
 #include <Kokkos_Core.hpp>
 
 #include <cassert>
@@ -138,6 +139,8 @@ auto ParaPANOCSolver<Conf>::operator()(
         vec lxu;      //< cost function at iterate -> l(x,u)
         vec lxû;      //< cost function after T(x,u) -> l(x,û)
         mat Jfxu;     //< Jacobian of dynamics Jf(x,u)
+        mat GN;       //< GN approximation of ∇²ψ
+        vec q_GN;     //< (∇²ψ)_{GN} * ∇ψ
         vec qr;       //< Cost function gradient Jh(x,u)dl(x,u)
         vec g;        //< Dynamic constraints, f(x,u) - x+
         vec gz;       //< g(x) + Σ⁻¹y
@@ -156,15 +159,15 @@ auto ParaPANOCSolver<Conf>::operator()(
         // @pre    @ref ψxu, @ref pᵀp, @pre grad_ψᵀp
         // @return φγ
         real_t fbe() const { return ψxu + pᵀp / (2 * γ) + grad_ψᵀp; }
-
-        Iterate(length_t n, length_t m, length_t nxu, length_t N) :
+ 
+        Iterate(length_t n, length_t nu, length_t m, length_t nxu, length_t N) :
             xu(n), xû(n), grad_ψ(n), fxu(m), fxû(m), hxu(n), hxû(n), 
-            qr(n), g(m), gz(m), gz_hat(m), Π_D(m), Π_D_hat(m), Z(m), p(n), Jfxu(m, nxu), 
-            lxu(N), lxû(N) {}
+            qr(n), g(m), gz(m), gz_hat(m), Π_D(m), Π_D_hat(m), Z(m), p(n), q_GN(n), 
+            Jfxu(m, nxu), GN((nxu*N)-nu,nxu), lxu(N), lxû(N) {}
     
     } 
     
-    iterates[2]{{n, m, nxu, N}, {n, m, nxu, N}};     
+    iterates[2]{{n, nu, m, nxu, N}, {n, nu, m, nxu, N}};     
     Iterate *curr = &iterates[0];
     Iterate *next = &iterates[1];
     
@@ -215,18 +218,16 @@ auto ParaPANOCSolver<Conf>::operator()(
 
         Eigen::Index k_ = k;
 
-        mat I; I.setIdentity(nxu,nx);
-
         if (k_ == N-1){
             It.grad_ψ.segment(k*nxu,nx) = It.qr.segment(k*nxu,nx) - It.Z.segment((k-1)*nx,nx);                            
         } 
-        else if(k_ == 0){ //this part need optimization, unnecessary calculations done!
+        else if(k_ == 0){ //TODO: this part need optimization, unnecessary calculations done!
             It.grad_ψ.segment(k*nxu,nxu) = It.qr.segment(k*nxu,nxu) +
                         It.Jfxu.block(k*nx,0,nx,nxu).transpose() * It.Z.segment(k*nx,nx);
             It.grad_ψ.segment(0,nx).setZero();
         }
         else {
-            It.grad_ψ.segment(k*nxu,nxu) = It.qr.segment(k*nxu,nxu) - I*It.Z.segment((k-1)*nx,nx) +
+            It.grad_ψ.segment(k*nxu,nxu) = It.qr.segment(k*nxu,nxu) - mat::Identity(nxu, nx)*It.Z.segment((k-1)*nx,nx) +
                         It.Jfxu.block(k*nx,0,nx,nxu).transpose() * It.Z.segment(k*nx,nx);
         }
     };
@@ -291,12 +292,12 @@ auto ParaPANOCSolver<Conf>::operator()(
         
         Eigen::Index k_ = k;
 
-        if (k_==N-1){
+        if (k_ == N-1){
             eval_proj_grad_step_box(D_N, It.γ, It.xu.segment(k*nxu,nx), 
                                     It.grad_ψ.segment(k*nxu,nx), 
                                     It.xû.segment(k*nxu,nx), It.p.segment(k*nxu,nx));
-        }
-        else{
+        } 
+        else {
             eval_proj_grad_step_box(D, It.γ, It.xu.segment(k*nxu,nx), 
                                     It.grad_ψ.segment(k*nxu,nx), 
                                     It.xû.segment(k*nxu,nx), It.p.segment(k*nxu,nx));
@@ -309,6 +310,40 @@ auto ParaPANOCSolver<Conf>::operator()(
     auto eval_pᵀp_grad_ψᵀp = [&](Iterate &It) {
         It.pᵀp      = It.p.squaredNorm();
         It.grad_ψᵀp = It.grad_ψ.dot(It.p);
+    };
+
+    auto eval_GN_accelerator = [&](int k, Iterate &It, crvec μ){
+        
+        mat work(2*nx,nxu); // TODO: allocate it somewhere else
+
+        if (k == N-1){
+            problem.eval_add_Q_N(It.xu.segment(k*nxu,nx),
+                            It.hxu.segment(k*nxu,nx), 
+                            It.GN.block(nxu*k,0,nx,nx));
+            It.GN.block(nxu*k,0,nx,nx) = (μ).segment((k-1)*nx,nx).asDiagonal();
+            It.q_GN.segment(k*nxu,nx)  = It.GN.block(nxu*k,0,nx,nx).inverse() * It.grad_ψ.segment(k*nxu,nx); //NOT SURE THIS IS CORRECT!!
+        } 
+        else if (k == 0){
+            problem.eval_add_Q(k, It.xu.segment(k*nxu,nxu), 
+                               It.hxu.segment(k*nxu,nxu),
+                               It.GN.block(nxu*k,0,nxu,nxu));
+            It.GN.block(nxu*k,0,nxu,nxu) += ((It.Jfxu.block(k*nx,0,nx,nxu)).transpose() * 
+                                            (μ).segment(k*nx,nx).asDiagonal()) *
+                                            (It.Jfxu.block(k*nx,0,nx,nxu));
+            It.q_GN.segment(k*nxu,nxu)    = It.GN.block(nxu*k,0,nxu,nxu).inverse() * It.grad_ψ.segment(k*nxu,nxu); //NOT SURE THIS IS CORRECT!!
+        } 
+        else {
+            problem.eval_add_Q(k, It.xu.segment(k*nxu,nxu), 
+                               It.hxu.segment(k*nxu,nxu),
+                               It.GN.block(nxu*k,0,nxu,nxu));
+            work.topRows(nx).setIdentity(); 
+            work.topRows(nx) *= -1;
+            work.bottomRows(nx) = It.Jfxu.block(k*nx,0,nx,nxu);
+            It.GN.block(nxu*k,0,nxu,nxu) += ((work).transpose() * 
+                                            (μ).segment((k-1)*nx,2*nx).asDiagonal()) *
+                                            (work);
+            It.q_GN.segment(k*nxu,nxu)    = It.GN.block(nxu*k,0,nxu,nxu).inverse() * It.grad_ψ.segment(k*nxu,nxu); //NOT SURE THIS IS CORRECT!!
+        }
     };
 
     auto fd_grad_ψ = [&](Iterate &it, crvec μ, crvec y) {
@@ -508,16 +543,13 @@ auto ParaPANOCSolver<Conf>::operator()(
                 << ",    ε = " << print_real(εₖ) << '\n';      //
         }
     };
-    auto print_progress_2 = [&](crvec qₖ, real_t τₖ, bool did_gn, length_t nJ,
-                                real_t min_rcond) {
-        *os << "│  ‖q‖ = " << print_real(qₖ.norm())                       //
-            << ",   #J = " << std::setw(7 + params.print_precision) << nJ //
-            << ", cond = " << print_real3(real_t(1) / min_rcond)          //
+    auto print_progress_2 = [&](crvec qₖ, real_t τₖ, bool did_gn) {
+        *os << ",  ‖q‖ = " << print_real(qₖ.norm())                       //
             << ",    τ = " << print_real3(τₖ)                             //
             << ",    " << (did_gn ? "GN" : "L-BFGS")                      //
             << std::endl; // Flush for Python buffering
     };
-    auto print_progress_3 = [&](Iterate &It, real_t &εₖ, real_t τ, unsigned k){
+    auto print_progress_3 = [&](Iterate &It, real_t &εₖ, real_t τ, unsigned k) {
         if (k == 0){
             *os << "┌─[ParaPANOC]\n";
         } else {
@@ -525,8 +557,6 @@ auto ParaPANOCSolver<Conf>::operator()(
             *os << "│    ψ = " << print_real(It.ψxu)               
                 << ", ‖∇ψ‖ = " << print_real(It.grad_ψ.norm())   
                 << ",  ‖p‖ = " << print_real(It.pᵀp)
-                << ",  ‖q‖ = " << print_real(q.norm())
-                << ",    τ = " << print_real3(τ) 
                 << ",    γ = " << print_real(It.γ)               
                 << ",    ε = " << print_real(εₖ) << '\n';
         }
@@ -571,7 +601,7 @@ auto ParaPANOCSolver<Conf>::operator()(
         });
         Kokkos::parallel_reduce("ψ(xu₀)", nthrds, [&](const int i, real_t &ψ_){
             ψ_ += eval_ψ_k(i, *curr, μ);
-        },curr->ψxu);
+        },curr->ψxu); 
     }
 
     if (not std::isfinite(curr->L)) {
@@ -591,9 +621,22 @@ auto ParaPANOCSolver<Conf>::operator()(
         ψ_ += eval_ψ_hat_k(i, *curr, μ, y);
     },curr->ψxû);
     Kokkos::fence();
+
     // Initialize steps 
     unsigned k  = 0;
     real_t τ    = 1;
+
+    // Initialize lbfgs
+    lbfgs.resize(n);
+    
+    // GN inital status
+    unsigned k_gn = 0; 
+    bool enable_gn;
+    bool enable_gn_global;
+    (params.gn_interval > 0) && (params.disable_acceleration == false) ? 
+                            enable_gn_global = true : enable_gn_global = false;
+    enable_gn = enable_gn_global;
+    bool did_gn;
 
     // Keep track of how many successive iterations didn't update the iterate
     unsigned no_progress = 0;
@@ -612,8 +655,7 @@ auto ParaPANOCSolver<Conf>::operator()(
             params.print_interval != 0 && k % params.print_interval == 0;
         if (do_print)
             print_progress_3(*curr, εₖ, τ ,k);
-            //print_progress_1(k, curr->fbe(), curr->ψxu, curr->grad_ψ, curr->pᵀp,
-            //                 curr->γ, εₖ);
+            print_progress_2(q, τ, did_gn);
 
         // Return solution -----------------------------------------------------
 
@@ -624,8 +666,7 @@ auto ParaPANOCSolver<Conf>::operator()(
             bool do_final_print = params.print_interval != 0;
             if (!do_print && do_final_print)
                 print_progress_3(*curr, εₖ, τ, k);
-                // print_progress_1(k, curr->fbe(), curr->ψxu, curr->grad_ψ, 
-                //                  curr->pᵀp, curr->γ, εₖ);
+                print_progress_2(q, τ, did_gn);
             if (do_print || do_final_print)
                 print_progress_n(stop_status);
             if (stop_status == SolverStatus::Converged ||
@@ -645,28 +686,43 @@ auto ParaPANOCSolver<Conf>::operator()(
             return s;
         }
 
+        real_t τ_init = NaN<config_t>;
+
+        // Calculate Gauss-Newton step -----------------------------------------
+ 
+        if (enable_gn == true){
+            Kokkos::parallel_for("GN_hessian", nthrds, [&](const int i){
+                eval_GN_accelerator(i, *curr, μ);
+            });
+            Kokkos::fence();
+            q = curr->q_GN;
+            τ_init = 1;
+            ++k_gn;
+        }
+
         // Calculate quasi-Newton step -----------------------------------------
 
-        real_t τ_init = NaN<config_t>;
-        if (k == 0) { // Initialize L-BFGS
-            lbfgs.resize(n);
-            q = curr->p;
-            τ_init = 0;
-        }
-        if (k > 0) {
-            q = curr->p;
-            τ_init = lbfgs.apply(q, curr->γ)
-                    ? 1
-                    : 0; // WE CANNOT USE .apply HERE!!! OUR L-BFGS IS NOT BEING UPDATED!!!!!!!!
-        }
-        // Make sure quasi-Newton step is valid
-        if (not q.allFinite()) {
-            if (τ_init == 1) { // If we computed a quasi-Newton step
-                ++s.lbfgs_failures;
-                lbfgs.reset(); // Is there anything else we can do?
+        if (enable_gn == false){
+            if (k == 0) { // Initialize L-BFGS
+                q = curr->p;
+                τ_init = 0;
             }
-            τ_init = 0;
+            if (k > 0) {
+                q = curr->p;
+                τ_init = lbfgs.apply(q, curr->γ)
+                        ? 1
+                        : 0; 
+            }
+            // Make sure quasi-Newton step is valid
+            if (not q.allFinite()) {
+                if (τ_init == 1) { // If we computed a quasi-Newton step
+                    ++s.lbfgs_failures;
+                    lbfgs.reset(); // Is there anything else we can do?
+                }
+                τ_init = 0;
+            }
         }
+
         // Line search ---------------------------------------------------------
 
         next->γ       = curr->γ;
@@ -717,7 +773,8 @@ auto ParaPANOCSolver<Conf>::operator()(
 
             // Recompute step only if τ changed
             if (τ != τ_prev) {
-                (τ != 0) && (params.disable_acceleration == false) ? take_accelerated_step(τ) : take_safe_step();
+                (τ != 0) && (params.disable_acceleration == false) ? 
+                                    take_accelerated_step(τ) : take_safe_step();
                 τ_prev = τ;
             } 
 
@@ -767,8 +824,16 @@ auto ParaPANOCSolver<Conf>::operator()(
         if (no_progress > 0 || k % params.max_no_progress == 0)
             no_progress = curr->xu == next->xu ? no_progress + 1 : 0;
 
+        // Check whether we used gn step in this PANOC step
+        (enable_gn == true) ? did_gn = true : did_gn = false;
+
+        // Check if the solver should use GN step in the next step
+        ((τ == 1) && (enable_gn == true)) || 
+        ((k == k_gn*params.gn_interval) && (enable_gn_global == true)) ? 
+                        enable_gn = true : enable_gn = false;
+
         // Update L-BFGS -------------------------------------------------------
-        if (curr->γ != next->γ){ // Flush L-BFGS if γ changed
+        if ((curr->γ != next->γ) || enable_gn == true){ // Flush L-BFGS if γ changed
             lbfgs.reset();
         } 
         s.lbfgs_rejected += not lbfgs.update(

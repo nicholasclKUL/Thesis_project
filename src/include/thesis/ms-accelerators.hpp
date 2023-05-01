@@ -3,6 +3,8 @@
 #include <alpaqa/config/config.hpp>
 #include <alpaqa/problem/box.hpp>
 
+#include <Kokkos_Core.hpp>
+
 #include <functional>
 
 namespace alpaqa {
@@ -37,7 +39,8 @@ void indexing (crvec x, crvec u, Box &X, Box &U) {
             ++nu_K;
         }        
     }
-
 }
+
+void 
     
 }

@@ -7,16 +7,14 @@
 #include <iomanip>
 #include <iostream>
 
-namespace alpaqa{
-
 struct LinearOCP {
 
  USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
     using Box = alpaqa::Box<config_t>;
 
-    length_t N = 20,      ///< Horizon length
+    length_t N = 3,      ///< Horizon length
         nu     = 1,       ///< Number of inputs
-        nx     = 100,       ///< Number of states
+        nx     = 5,       ///< Number of states
         nh     = nu + nx, ///< Number of stage outputs
         nh_N   = nx,      ///< Number of terminal outputs
         nc     = 0,       ///< Number of stage constraints
@@ -39,8 +37,8 @@ struct LinearOCP {
 
     void get_U(Box &U) const {
         alpaqa::ScopedMallocAllower ma;
-        U.lowerbound.setConstant(-2);
-        U.upperbound.setConstant(+2);
+        U.lowerbound.setConstant(-alpaqa::inf<config_t>);
+        U.upperbound.setConstant(+alpaqa::inf<config_t>);
     }
     void get_D([[maybe_unused]] Box &D) const {       
         alpaqa::ScopedMallocAllower ma;
@@ -102,12 +100,15 @@ struct LinearOCP {
     void eval_add_Q([[maybe_unused]] index_t timestep, 
                     [[maybe_unused]] crvec xu, 
                     [[maybe_unused]] crvec h, rmat Q) const {
-        Q += mat::Identity(nx, nx);
+        alpaqa::ScopedMallocAllower ma;
+        auto Jh_xu    = mat::Identity(nx + nu, nx + nu);
+        Q.noalias()   = Jh_xu.transpose() * Jh_xu;
     }
     void eval_add_Q_N([[maybe_unused]] crvec x,
                       [[maybe_unused]] crvec h, rmat Q) const {
         alpaqa::ScopedMallocAllower ma;
-        Q += 10 * mat::Identity(nx, nx);
+        auto Jh_x     = mat::Identity(nx, nx);
+        Q.noalias()   = Jh_x.transpose() * Jh_x;
     }
     void eval_add_R_masked([[maybe_unused]] index_t timestep,
                            [[maybe_unused]] crvec xu, 
@@ -166,5 +167,3 @@ struct LinearOCP {
         // You could do some sanity checks here
     }
 };
-
-}

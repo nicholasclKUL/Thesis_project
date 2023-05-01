@@ -1,3 +1,5 @@
+SOLVED PROBLEMS:
+
 (1) Gradient and cost function will be different between SS and MS throughut optimization, because they are different formulations (e.g different number of decision variabes, cost function, etc). They will only "match" upon convergence. Is this also true for the inner optimization? Do the inner problems of SS and MS share the same minimizer and minima?
 
 (2) Algorithm's behavior improved after fixing mistakes in PANOC's cost evaluation.  
@@ -21,17 +23,17 @@
 (10) Although in OBS(8) the code had a bug that would stop PANOC after a few iterations, this however proved benefitial to have a faster
 convergence to ALM; This aligns with (4); for the ALM we only need a rough estimate of the solution of the inner problem, hence we can keep the number of iterations the smallest possible, this will avoid the expensive iterations of PANOC due to the necessity of simulate our PDE inumerous times (evaluations of f(x,u)).  
 
--> L-BFGS makes PANOC takes more iterations to converge! Why is that??
+(11) L-BFGS makes PANOC takes more iterations to converge! Why is that??
 
--> Do profiling;
-
--> Check code of Penalty and lagrange multipliers update;
+(12) Check code of Penalty and lagrange multipliers update;
 	-> delta lowercase is not being updated, that's why ALM is currently not terminating;
-	
--> Check the fixed points of the nonlinear system; 
+
+UNSOLVED PROBLEMS AND NEXT STEPS:
+
+-> Gauss-Newton step worsens convergence! Check whether matrices are being updated correctly!
 
 -> Next improvements to the code: 
 	-> Add AD interface using SACADO; 
 	-> Add search for active and inactive constraints;
 	-> Add box constraints for u and x separately;
-		-> Modify TypeErasedControlProblem to add the function .get_X();      
+		-> Modify TypeErasedControlProblem to add the function .get_X();   

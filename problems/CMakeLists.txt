@@ -3,7 +3,8 @@ add_library(problems
 # bechnmark problems
 "linear_dynamics.hpp"
 "nonlinear_example1.hpp"
-"nonlinear_example2.hpp"
+"hanging_chain.hpp"
+"quadcopter.hpp"
 )
 
 target_link_libraries(problems PRIVATE Kokkos::kokkos)

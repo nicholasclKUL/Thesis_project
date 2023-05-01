@@ -1,11 +1,12 @@
 add_library(thesis 
 
 # solver
-"include/Thesis/Thesis.hpp"
-"include/Thesis/para-panoc.hpp"
-"include/Thesis/para-alm.hpp"
-"include/Thesis/printing.hpp"
-"include/Thesis/gn-ms.hpp"
+"include/thesis/thesis.hpp"
+"include/thesis/para-panoc.hpp"
+"include/thesis/para-alm.hpp"
+#"include/thesis/para-lbfgs.hpp"
+"include/thesis/printing.hpp"
+"include/thesis/ms-accelerators.hpp"
 )
 
 target_link_libraries(thesis PRIVATE Kokkos::kokkos)

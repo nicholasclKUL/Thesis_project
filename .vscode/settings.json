@@ -81,6 +81,7 @@
         "charconv": "cpp",
         "*.inc": "cpp",
         "shared_mutex": "cpp",
-        "jacobi": "cpp"
+        "jacobi": "cpp",
+        "cassert": "cpp"
     },
 }

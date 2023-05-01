@@ -5,8 +5,8 @@
 
 #include <Kokkos_Core.hpp>
 
-#include <Thesis/para-panoc.hpp>
-#include <Thesis/printing.hpp>
+#include <thesis/para-panoc.hpp>
+#include <thesis/printing.hpp>
 #include <nonlinear_example1.hpp>
 #include <linear_dynamics.hpp>
 
@@ -16,7 +16,7 @@
 int main() {
     USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
-    alpaqa::ControlProblemWithCounters<alpaqa::LinearOCP> problem;
+    alpaqa::ControlProblemWithCounters<LinearOCP> problem;
 
     // Problem dimensions
     //SS
@@ -46,17 +46,17 @@ int main() {
     // Solver
     alpaqa::PANOCOCPParams<config_t> params;
     params.stop_crit      = alpaqa::PANOCStopCrit::ProjGradNorm2;
-    params.gn_interval    = 0;
-    params.print_interval = 0;
-    params.max_iter = 4000;
+    params.gn_interval    = 10;
+    params.print_interval = 1;
+    params.max_iter = 30;
     params.disable_acceleration = false;
     auto tol = 1e-4;
 
     // Solve SS
-    alpaqa::PANOCOCPSolver<config_t> solver_ss{params};
-    auto stats_ss = solver_ss(problem, {.tolerance = tol}, u, y, μ, e);
-    //printing statistics:
-    printing::print_stats(stats_ss, e);
+    // alpaqa::PANOCOCPSolver<config_t> solver_ss{params};
+    // auto stats_ss = solver_ss(problem, {.tolerance = tol}, u, y, μ, e);
+    // //printing statistics:
+    // printing::print_stats_inner(stats_ss, e);
     
     //Solve MS-Parallel
     Kokkos::initialize(Kokkos::InitializationSettings());
@@ -64,6 +64,6 @@ int main() {
     auto stats_ms = solver_ms(problem, {.tolerance = tol}, xu, y_ms, μ_ms, e_ms, g_ms, nt);
     Kokkos::finalize();
     // MS statistics
-    printing::print_stats(stats_ms, e_ms);
+    printing::print_stats_inner(stats_ms, e_ms);
 
 }
