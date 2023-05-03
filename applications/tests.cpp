@@ -46,9 +46,9 @@ int main() {
     // Solver
     alpaqa::PANOCOCPParams<config_t> params;
     params.stop_crit      = alpaqa::PANOCStopCrit::ProjGradNorm2;
-    params.gn_interval    = 10;
+    params.gn_interval    = 1;
     params.print_interval = 1;
-    params.max_iter = 30;
+    params.max_iter = 100;
     params.disable_acceleration = false;
     auto tol = 1e-4;
 

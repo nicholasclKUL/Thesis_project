@@ -160,14 +160,14 @@ auto ParaPANOCSolver<Conf>::operator()(
         // @return φγ
         real_t fbe() const { return ψxu + pᵀp / (2 * γ) + grad_ψᵀp; }
  
-        Iterate(length_t n, length_t nu, length_t m, length_t nxu, length_t N) :
+        Iterate(length_t n, length_t m, length_t nxu, length_t N) :
             xu(n), xû(n), grad_ψ(n), fxu(m), fxû(m), hxu(n), hxû(n), 
             qr(n), g(m), gz(m), gz_hat(m), Π_D(m), Π_D_hat(m), Z(m), p(n), q_GN(n), 
-            Jfxu(m, nxu), GN((nxu*N)-nu,nxu), lxu(N), lxû(N) {}
+            Jfxu(m, nxu), GN(n,n), lxu(N), lxû(N) {}
     
     } 
     
-    iterates[2]{{n, nu, m, nxu, N}, {n, nu, m, nxu, N}};     
+    iterates[2]{{n, m, nxu, N}, {n, m, nxu, N}};     
     Iterate *curr = &iterates[0];
     Iterate *next = &iterates[1];
     
@@ -313,36 +313,41 @@ auto ParaPANOCSolver<Conf>::operator()(
     };
 
     auto eval_GN_accelerator = [&](int k, Iterate &It, crvec μ){
-        
-        mat work(2*nx,nxu); // TODO: allocate it somewhere else
+
+        mat work (nx,nxu+nx);
 
         if (k == N-1){
+            mat work_eval_Q(nx,nx);
             problem.eval_add_Q_N(It.xu.segment(k*nxu,nx),
                             It.hxu.segment(k*nxu,nx), 
-                            It.GN.block(nxu*k,0,nx,nx));
-            It.GN.block(nxu*k,0,nx,nx) = (μ).segment((k-1)*nx,nx).asDiagonal();
-            It.q_GN.segment(k*nxu,nx)  = It.GN.block(nxu*k,0,nx,nx).inverse() * It.grad_ψ.segment(k*nxu,nx); //NOT SURE THIS IS CORRECT!!
+                            work_eval_Q);
+            It.GN.block(nxu*k,nxu*k,nx,nx) += work_eval_Q;
         } 
         else if (k == 0){
+            mat work_eval_Q(nxu,nxu);
+            work.leftCols(nxu) = It.Jfxu.block(k*nx,0,nx,nxu);
+            work.rightCols(nx).setIdentity();
+            work.rightCols(nx) *= -1; 
             problem.eval_add_Q(k, It.xu.segment(k*nxu,nxu), 
                                It.hxu.segment(k*nxu,nxu),
-                               It.GN.block(nxu*k,0,nxu,nxu));
-            It.GN.block(nxu*k,0,nxu,nxu) += ((It.Jfxu.block(k*nx,0,nx,nxu)).transpose() * 
+                               work_eval_Q);
+            It.GN.block(k*nxu,k*nxu,nxu,nxu) += work_eval_Q;
+            It.GN.block(k*nxu,k*nxu,nxu+nx,nxu+nx) += (work.transpose() * 
                                             (μ).segment(k*nx,nx).asDiagonal()) *
-                                            (It.Jfxu.block(k*nx,0,nx,nxu));
-            It.q_GN.segment(k*nxu,nxu)    = It.GN.block(nxu*k,0,nxu,nxu).inverse() * It.grad_ψ.segment(k*nxu,nxu); //NOT SURE THIS IS CORRECT!!
+                                            (work);
         } 
         else {
+            mat work_eval_Q(nxu,nxu);
+            work.leftCols(nxu) = It.Jfxu.block(k*nx,0,nx,nxu);
+            work.rightCols(nx).setIdentity();
+            work.rightCols(nx) *= -1;
             problem.eval_add_Q(k, It.xu.segment(k*nxu,nxu), 
                                It.hxu.segment(k*nxu,nxu),
-                               It.GN.block(nxu*k,0,nxu,nxu));
-            work.topRows(nx).setIdentity(); 
-            work.topRows(nx) *= -1;
-            work.bottomRows(nx) = It.Jfxu.block(k*nx,0,nx,nxu);
-            It.GN.block(nxu*k,0,nxu,nxu) += ((work).transpose() * 
-                                            (μ).segment((k-1)*nx,2*nx).asDiagonal()) *
+                               work_eval_Q);
+            It.GN.block(k*nxu,k*nxu,nxu,nxu) += work_eval_Q;
+            It.GN.block(k*nxu,k*nxu,nxu+nx,nxu+nx) += (work.transpose() * 
+                                            (μ).segment(k*nx,nx).asDiagonal()) *
                                             (work);
-            It.q_GN.segment(k*nxu,nxu)    = It.GN.block(nxu*k,0,nxu,nxu).inverse() * It.grad_ψ.segment(k*nxu,nxu); //NOT SURE THIS IS CORRECT!!
         }
     };
 
@@ -636,7 +641,7 @@ auto ParaPANOCSolver<Conf>::operator()(
     (params.gn_interval > 0) && (params.disable_acceleration == false) ? 
                             enable_gn_global = true : enable_gn_global = false;
     enable_gn = enable_gn_global;
-    bool did_gn;
+    bool did_gn = enable_gn_global;
 
     // Keep track of how many successive iterations didn't update the iterate
     unsigned no_progress = 0;
@@ -653,10 +658,10 @@ auto ParaPANOCSolver<Conf>::operator()(
         // Print progress ------------------------------------------------------
         bool do_print =
             params.print_interval != 0 && k % params.print_interval == 0;
-        if (do_print)
+        if (do_print){
             print_progress_3(*curr, εₖ, τ ,k);
             print_progress_2(q, τ, did_gn);
-
+        }
         // Return solution -----------------------------------------------------
 
         auto time_elapsed = std::chrono::steady_clock::now() - start_time;
@@ -664,9 +669,10 @@ auto ParaPANOCSolver<Conf>::operator()(
             check_all_stop_conditions(time_elapsed, k, εₖ, no_progress);
         if (stop_status != SolverStatus::Busy) {
             bool do_final_print = params.print_interval != 0;
-            if (!do_print && do_final_print)
+            if (!do_print && do_final_print){
                 print_progress_3(*curr, εₖ, τ, k);
                 print_progress_2(q, τ, did_gn);
+            }
             if (do_print || do_final_print)
                 print_progress_n(stop_status);
             if (stop_status == SolverStatus::Converged ||
@@ -691,11 +697,13 @@ auto ParaPANOCSolver<Conf>::operator()(
         // Calculate Gauss-Newton step -----------------------------------------
  
         if (enable_gn == true){
+            curr->GN.setZero();
             Kokkos::parallel_for("GN_hessian", nthrds, [&](const int i){
                 eval_GN_accelerator(i, *curr, μ);
             });
             Kokkos::fence();
-            q = curr->q_GN;
+            //std::cout<<curr->GN<<std::endl;
+            q = - curr->GN.inverse()*curr->grad_ψ;
             τ_init = 1;
             ++k_gn;
         }
@@ -732,9 +740,8 @@ auto ParaPANOCSolver<Conf>::operator()(
 
         // xₖ₊₁ = xₖ + pₖ
         auto take_safe_step = [&] {
-            next->xu = curr->xû; // makes xₖ₊₁ = xₖ + pₖ = curr->xû, 
-            next->ψxu = curr->ψxû; // and consequentely, ψ(xₖ₊₁) = ψ(xₖ) = curr->ψxû
-            // Calculate ∇ψ(xₖ₊₁) .: ∇ψ(xₖ₊₁) = ∇ψ(xₖ); shouldn't we reuse ∇ψ(xₖ) from previous step??  
+            next->xu = curr->xû;  
+            next->ψxu = curr->ψxû; 
             Kokkos::parallel_for("xₖ₊₁, safe step", nthrds, [&](const int i){
                 eval_iterate(i, *next, μ, y);
             });

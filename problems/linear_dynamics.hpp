@@ -108,7 +108,7 @@ struct LinearOCP {
                       [[maybe_unused]] crvec h, rmat Q) const {
         alpaqa::ScopedMallocAllower ma;
         auto Jh_x     = mat::Identity(nx, nx);
-        Q.noalias()   = Jh_x.transpose() * Jh_x;
+        Q.noalias()   = 10 * (Jh_x.transpose() * Jh_x);
     }
     void eval_add_R_masked([[maybe_unused]] index_t timestep,
                            [[maybe_unused]] crvec xu, 

@@ -30,6 +30,8 @@ convergence to ALM; This aligns with (4); for the ALM we only need a rough estim
 
 UNSOLVED PROBLEMS AND NEXT STEPS:
 
+-> Parallelize L-BFGS
+
 -> Gauss-Newton step worsens convergence! Check whether matrices are being updated correctly!
 
 -> Next improvements to the code: 

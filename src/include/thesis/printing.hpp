@@ -11,12 +11,12 @@ namespace printing {
 
 USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
-using Problem           = alpaqa::TypeErasedControlProblem<config_t>;
 using Stats_inner       = alpaqa::PANOCOCPStats<config_t>;
 using Stats_outer_ms    = alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<alpaqa::DefaultConfig>>::Stats;
 using Stats_outer_ss    = alpaqa::ALMSolver<alpaqa::PANOCOCPSolver<alpaqa::DefaultConfig>>::Stats;
 
-void print_solution (Problem &problem, crvec xu) {
+template <typename P>
+void print_solution (P &problem, crvec xu) {
     for (length_t i = 0; i < problem.get_N()+1; ++i){
         std::cout<<"--Stage "<<i<<":"<<'\n';
         if (i < problem.get_N()){
@@ -29,7 +29,8 @@ void print_solution (Problem &problem, crvec xu) {
     }
 }
 
-void print_solution_ss (Problem &problem, crvec u) {
+template <typename P>
+void print_solution_ss (P &problem, crvec u) {
         for (length_t i = 0; i < problem.get_N()+1; ++i){
         std::cout<<"--Stage "<<i<<":"<<'\n';
         if (i < problem.get_N()){
@@ -37,6 +38,7 @@ void print_solution_ss (Problem &problem, crvec u) {
         }      
     }
 }
+
 
 void print_stats_inner (Stats_inner &stats, crvec e){
     auto δ    = e.lpNorm<Eigen::Infinity>();

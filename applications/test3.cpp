@@ -12,7 +12,7 @@ struct MyProblem {
 
     length_t N = 5,      ///< Horizon length
         nu     = 1,       ///< Number of inputs
-        nx     = 2,       ///< Number of states
+        nx     = 5,       ///< Number of states
         nh     = nu + nx, ///< Number of stage outputs
         nh_N   = nx,      ///< Number of terminal outputs
         nc     = 0,       ///< Number of stage constraints

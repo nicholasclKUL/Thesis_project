@@ -58,11 +58,10 @@ int main() {
     // Inner:
     alpaqa::PANOCOCPParams<config_t> params;
     params.stop_crit = alpaqa::PANOCStopCrit::ProjGradNorm2;
-    params.gn_interval = 5;
-    params.print_interval = 0;
+    params.gn_interval = 0;
+    params.print_interval = 1;
     params.max_iter = 10000;
     params.disable_acceleration = false;
-    params.gn_interval = 0;
     // Outer:
     alpaqa::ALMParams almparams; 
     almparams.tolerance = 1e-8;
