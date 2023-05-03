@@ -32,7 +32,7 @@ UNSOLVED PROBLEMS AND NEXT STEPS:
 
 -> Parallelize L-BFGS
 
--> Gauss-Newton step worsens convergence! Check whether matrices are being updated correctly!
+-> Gauss-Newton derived for NO box constraints in the states and input. Derive Gauss-Newton for box constraints on both! Start derivation from Jacobian of Fixed-Point Residual or system 6.23 from "Pas - A matrix-free nonlinear solver" 
 
 -> Next improvements to the code: 
 	-> Add AD interface using SACADO; 
