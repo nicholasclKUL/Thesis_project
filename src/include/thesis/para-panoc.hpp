@@ -702,8 +702,8 @@ auto ParaPANOCSolver<Conf>::operator()(
                 eval_GN_accelerator(i, *curr, μ);
             });
             Kokkos::fence();
-            //std::cout<<curr->GN<<std::endl;
-            q = - curr->GN.inverse()*curr->grad_ψ;
+            q.segment(0,nx).setZero();
+            q.segment(nx,n-nx) = - curr->GN.block(nx,nx,n-nx,n-nx).inverse()*curr->grad_ψ.segment(nx,n-nx);
             τ_init = 1;
             ++k_gn;
         }
