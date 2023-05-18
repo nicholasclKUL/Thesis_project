@@ -161,5 +161,4 @@ class ParaLBFGS {
     Params params;
 };
 
-
 }

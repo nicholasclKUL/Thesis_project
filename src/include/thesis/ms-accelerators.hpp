@@ -40,7 +40,5 @@ void indexing (crvec x, crvec u, Box &X, Box &U) {
         }        
     }
 }
-
-void 
     
 }

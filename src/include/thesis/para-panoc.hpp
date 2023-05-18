@@ -7,6 +7,7 @@
 #include <alpaqa/implementation/inner/panoc.tpp>
 #include <alpaqa/implementation/inner/panoc-ocp.tpp>
 #include <alpaqa/implementation/inner/panoc-helpers.tpp>
+#include <thesis/para-panoc-helpers.hpp>
 
 #include <Kokkos_Core.hpp>
 
@@ -103,7 +104,7 @@ auto ParaPANOCSolver<Conf>::operator()(
     Stats s;
     LBFGS<config_t> lbfgs{params.lbfgs_params};
 
-    const auto N    = problem.get_N()+1;      // horizon N
+    const auto N    = problem.get_N()+1;    // horizon N
     const auto nu   = problem.get_nu();     // number of inputs
     const auto nx   = problem.get_nx();     // number of states
     const auto nc   = problem.get_nc();     // number of box constraints
@@ -125,281 +126,83 @@ auto ParaPANOCSolver<Conf>::operator()(
     F.upperbound.setConstant(0);
 
     // Iterates ----------------------------------------------------------------
- 
+
     // Represents an iterate in the algorithm, keeping track of some
     // intermediate values and function evaluations.
     struct Iterate {
-        vec xû;       //< Inputs u interleaved with states x after prox grad
-        vec xu;       //< Inputs u interleaved with states x -> x₀, u₀, x₁, u₁,...,uₙ₋₁, xₙ 
-        vec grad_ψ;   //< Gradient of cost w.r.t {x₀, u₀, x₁, u₁,...,uₙ₋₁, xₙ}
-        vec fxu;      //< Dynamics f(x,u)
-        vec hxu;      //< nonconvex mapping h(x,u)
-        vec fxû;      //< Dynamics f(x,û)
-        vec hxû;      //< nonconvex mapping h(x,û)
-        vec lxu;      //< cost function at iterate -> l(x,u)
-        vec lxû;      //< cost function after T(x,u) -> l(x,û)
-        mat Jfxu;     //< Jacobian of dynamics Jf(x,u)
-        mat GN;       //< GN approximation of ∇²ψ
-        vec q_GN;     //< (∇²ψ)_{GN} * ∇ψ
-        vec qr;       //< Cost function gradient Jh(x,u)dl(x,u)
-        vec g;        //< Dynamic constraints, f(x,u) - x+
-        vec gz;       //< g(x) + Σ⁻¹y
-        vec gz_hat;   //< g(x_hat) + Σ⁻¹y
-        vec Π_D;      //< Projection of states and variables into their box constraints
-        vec Π_D_hat;  //< Projection of states and variables into their box constraints
-        vec Z;        //< (Σ*(f(xₖ,uₖ)-xₖ₊₁-Π_D(f(xₖ,uₖ)-xₖ₊₁+Σ⁻¹y))-y)
-        vec p;        //< Proximal gradient step
-        real_t ψxu      = NaN<config_t>;            //< Cost in x
-        real_t ψxû      = NaN<config_t>;            //< Cost in x̂
-        real_t γ        = NaN<config_t>;            //< Step size γ
-        real_t L        = NaN<config_t>;            //< Lipschitz estimate L
-        real_t pᵀp      = NaN<config_t>;            //< Norm squared of p
-        real_t grad_ψᵀp = NaN<config_t>;            //< Dot product of gradient and p
+        
+        vec xû;         //< Inputs u interleaved with states x after prox grad
+        vec xu;         //< Inputs u interleaved with states x -> x₀, u₀, x₁, u₁,...,uₙ₋₁, xₙ 
+        vec grad_ψ;     //< Gradient of cost w.r.t {x₀, u₀, x₁, u₁,...,uₙ₋₁, xₙ}
+        vec fxu;        //< Dynamics f(x,u)
+        vec hxu;        //< nonconvex mapping h(x,u)
+        vec fxû;        //< Dynamics f(x,û)
+        vec hxû;        //< nonconvex mapping h(x,û)
+        vec lxu;        //< cost function at iterate -> l(x,u)
+        vec lxû;        //< cost function after T(x,u) -> l(x,û)
+        mat Jfxu;       //< Jacobian of dynamics Jf(x,u)
+        mat GN;         //< GN approximation of ∇²ψ
+        vec qr;         //< Cost function gradient Jh(x,u)dl(x,u)
+        vec g;          //< Dynamic constraints, f(x,u) - x+
+        vec gz;         //< g(x) + Σ⁻¹y
+        vec gz_hat;     //< g(x_hat) + Σ⁻¹y
+        vec Π_D;        //< Projection of states and variables into their box constraints
+        vec Π_D_hat;    //< Projection of states and variables into their box constraints
+        vec Z;          //< (Σ*(f(xₖ,uₖ)-xₖ₊₁-Π_D(f(xₖ,uₖ)-xₖ₊₁+Σ⁻¹y))-y)
+        vec p;          //< Proximal gradient step
+        
+        real_t ψxu      = alpaqa::NaN<config_t>;        //< Cost in x
+        real_t ψxû      = alpaqa::NaN<config_t>;        //< Cost in x̂
+        real_t γ        = alpaqa::NaN<config_t>;        //< Step size γ
+        real_t L        = alpaqa::NaN<config_t>;        //< Lipschitz estimate L
+        real_t pᵀp      = alpaqa::NaN<config_t>;        //< Norm squared of p
+        real_t grad_ψᵀp = alpaqa::NaN<config_t>;        //< Dot product of gradient and p
 
         // @pre    @ref ψxu, @ref pᵀp, @pre grad_ψᵀp
         // @return φγ
         real_t fbe() const { return ψxu + pᵀp / (2 * γ) + grad_ψᵀp; }
- 
+
         Iterate(length_t n, length_t m, length_t nxu, length_t N) :
             xu(n), xû(n), grad_ψ(n), fxu(m), fxû(m), hxu(n), hxû(n), 
-            qr(n), g(m), gz(m), gz_hat(m), Π_D(m), Π_D_hat(m), Z(m), p(n), q_GN(n), 
+            qr(n), g(m), gz(m), gz_hat(m), Π_D(m), Π_D_hat(m), Z(m), p(n), 
             Jfxu(m, nxu), GN(n,n), lxu(N), lxû(N) {}
-    
-    } 
-    
-    iterates[2]{{n, m, nxu, N}, {n, m, nxu, N}};     
+
+    } iterates[2]{{n, m, nxu, N}, {n, m, nxu, N}}; 
+
     Iterate *curr = &iterates[0];
     Iterate *next = &iterates[1];
     
     // Helper functions --------------------------------------------------------
 
-    auto eval_proj_set = [&](const Box<config_t> &box, crvec x) {
-        using binary_real_f = real_t (*)(real_t, real_t);
-        return x.binaryExpr(box.lowerbound, binary_real_f(std::fmax))
-                .binaryExpr(box.upperbound, binary_real_f(std::fmin));
-    };
-
+    //create lambdas for Kokkos
     auto eval_iterate = [&](int k, Iterate &It, crvec μ, crvec y){       
-
-        Eigen::Index k_ = k;
-
-        if (k_ == N-1){
-            problem.eval_h_N(It.xu.segment(k*nxu,nx),
-                            It.hxu.segment(k*nxu,nx));
-            It.lxu(k) = problem.eval_l_N(It.hxu.segment(k*nxu,nx));
-            problem.eval_q_N(It.xu.segment(k*nxu,nx),
-                            It.hxu.segment(k*nxu,nx), 
-                            It.qr.segment(k*nxu,nx));
-        } else {
-            problem.eval_f(k, It.xu.segment(k*nxu,nx),
-                            It.xu.segment((k*nxu)+nx,nu), 
-                            It.fxu.segment(k*nx,nx));
-            problem.eval_jac_f(k, It.xu.segment(k*nxu,nx),
-                            It.xu.segment((k*nxu)+nx,nu),
-                            It.Jfxu.block(k*nx,0,nx,nxu));
-            problem.eval_h(k, It.xu.segment(k*nxu,nx), 
-                            It.xu.segment((k*nxu)+nx,nu),
-                            It.hxu.segment(k*nxu,nxu));            
-            It.lxu(k) = problem.eval_l(k, It.hxu.segment(k*nxu,nxu));
-            problem.eval_qr(k, It.xu.segment(k*nxu,nxu), 
-                            It.hxu.segment(k*nxu,nxu),
-                            It.qr.segment(k*nxu,nxu));
-            It.g.segment(k*nx,nx) = It.fxu.segment(k*nx,nx) - It.xu.segment((k+1)*nxu,nx);           
-            It.gz.segment(k*nx,nx) = It.g.segment(k*nx,nx) + 
-                                    ((μ).segment(k*nx,nx).asDiagonal().inverse()*(y.segment(k*nx,nx)));            
-            It.Π_D.segment(k*nx,nx).noalias() = eval_proj_set(F, It.gz.segment(k*nx,nx));
-            It.Z.segment(k*nx,nx)   = (μ.segment(k*nx,nx).cwiseProduct(It.fxu.segment(k*nx,nx)
-                                    -It.xu.segment((k+1)*nxu,nx)-It.Π_D.segment(k*nx,nx)) 
-                                    + y.segment(k*nx,nx));          
-        }
+        eval_iterate_fun(k, It, problem, μ, y, F);
     };
-
     auto eval_grad_ψ_k = [&](int k, Iterate &It, crvec μ, crvec y){
-
-        Eigen::Index k_ = k;
-
-        if (k_ == N-1){
-            It.grad_ψ.segment(k*nxu,nx) = It.qr.segment(k*nxu,nx) - It.Z.segment((k-1)*nx,nx);                            
-        } 
-        else if(k_ == 0){ //TODO: this part need optimization, unnecessary calculations done!
-            It.grad_ψ.segment(k*nxu,nxu) = It.qr.segment(k*nxu,nxu) +
-                        It.Jfxu.block(k*nx,0,nx,nxu).transpose() * It.Z.segment(k*nx,nx);
-            It.grad_ψ.segment(0,nx).setZero();
-        }
-        else {
-            It.grad_ψ.segment(k*nxu,nxu) = It.qr.segment(k*nxu,nxu) - mat::Identity(nxu, nx)*It.Z.segment((k-1)*nx,nx) +
-                        It.Jfxu.block(k*nx,0,nx,nxu).transpose() * It.Z.segment(k*nx,nx);
-        }
+        eval_grad_ψ_k_fun(k, It, problem, μ, y);
     };
-
     auto eval_ψ_k = [&](int k, Iterate &It, crvec μ){
-
-        Eigen::Index k_ = k;
-        real_t ψxu_k = 0;
-
-        if (k_ == N-1){
-            return ψxu_k = It.lxu(k);
-        }
-        else {
-            auto d = (It.gz.segment(k*nx,nx)-
-                      eval_proj_set(F,It.gz.segment(k*nx,nx)));
-            return ψxu_k = It.lxu(k) + 
-                         0.5*d.transpose()*(μ).segment(k*nx,nx).asDiagonal()*d;
-        }
+        return eval_ψ_k_fun(k, It, problem, μ, F);
     };
-
     auto eval_ψ_hat_k = [&](int k, Iterate &It, crvec μ, crvec y){
-        
-        real_t ψxû_k = 0;
-        Eigen::Index i_ = k;
-
-        if (i_ == N-1){
-            problem.eval_h_N(It.xû.segment(k*nxu,nx),
-                             It.hxû.segment(k*nxu,nx));
-            It.lxû(k) = problem.eval_l_N(It.hxû.segment(k*nxu,nx));
-            return ψxû_k = It.lxû(k);
-        } 
-        else {
-            problem.eval_f(k, It.xû.segment(k*nxu,nx),
-                          It.xû.segment(k*(nxu)+nx,nu), 
-                          It.fxû.segment(k*nx,nx));
-            problem.eval_h(k, It.xû.segment(k*nxu,nx), 
-                            It.xû.segment((k*nxu)+nx,nu),
-                            It.hxû.segment(k*nxu,nxu));
-            It.lxû(k) = problem.eval_l(k, It.hxû.segment(k*nxu,nxu));                       
-            It.gz_hat.segment(k*nx,nx) = It.fxû.segment(k*nx,nx) - 
-                            It.xû.segment((k+1)*nxu,nx)  
-                            + ((μ).segment(k*nx,nx).asDiagonal().inverse()*(y.segment(k*nx,nx)));
-            It.Π_D_hat.segment(k*nx,nx) = eval_proj_set(F, It.gz_hat.segment(k*nx,nx));  
-            auto d = (It.gz_hat.segment(k*nx,nx)-
-                      eval_proj_set(F,It.gz_hat.segment(k*nx,nx))); 
-            return ψxû_k = It.lxû(k) + 
-                         0.5*d.transpose()*(μ).segment(k*nx,nx).asDiagonal()*d;            
-        }
+        return eval_ψ_hat_k_fun(k, It, problem, μ, y, F);        
     };
-    
-    // Τγₖ(xₖ)
-    auto eval_proj_grad_step_box = [&](const Box<config_t> &box, real_t γ, crvec x, crvec grad_ψ, rvec x̂,
-                                        rvec p) {
-        using binary_real_f = real_t (*)(real_t, real_t);
-        p                   = (-γ * grad_ψ)
-                .binaryExpr(box.lowerbound - x, binary_real_f(std::fmax))
-                .binaryExpr(box.upperbound - x, binary_real_f(std::fmin));
-        x̂ = x + p;
-    };
-    
     auto eval_prox = [&](int k, Iterate &It) {
-        
-        Eigen::Index k_ = k;
-
-        if (k_ == N-1){
-            eval_proj_grad_step_box(D_N, It.γ, It.xu.segment(k*nxu,nx), 
-                                    It.grad_ψ.segment(k*nxu,nx), 
-                                    It.xû.segment(k*nxu,nx), It.p.segment(k*nxu,nx));
-        } 
-        else {
-            eval_proj_grad_step_box(D, It.γ, It.xu.segment(k*nxu,nx), 
-                                    It.grad_ψ.segment(k*nxu,nx), 
-                                    It.xû.segment(k*nxu,nx), It.p.segment(k*nxu,nx));
-            eval_proj_grad_step_box(U, It.γ, It.xu.segment((k*nxu)+nx,nu), 
-                                    It.grad_ψ.segment((k*nxu)+nx,nu), 
-                                    It.xû.segment((k*nxu)+nx,nu), It.p.segment((k*nxu)+nx,nu));
-        }
+        eval_prox_fun(k, It, problem, μ, y, D_N, D, U);
+    };
+    auto eval_GN_accelerator = [&](int k, Iterate &It, crvec μ){
+        eval_GN_accelerator_fun(k, It, problem, μ);
     };
 
+    //finite difference gradient approximation
+    auto fd_grad_ψ = [&](int k, Iterate &It, crvec μ, crvec y) {
+        fd_grad_ψ_fun(k, It, problem, μ, y, F);       
+    };
+
+    //vector products for stopping criteria
     auto eval_pᵀp_grad_ψᵀp = [&](Iterate &It) {
         It.pᵀp      = It.p.squaredNorm();
         It.grad_ψᵀp = It.grad_ψ.dot(It.p);
-    };
-
-    auto eval_GN_accelerator = [&](int k, Iterate &It, crvec μ){
-
-        mat work (nx,nxu+nx);
-
-        if (k == N-1){
-            mat work_eval_Q(nx,nx);
-            problem.eval_add_Q_N(It.xu.segment(k*nxu,nx),
-                            It.hxu.segment(k*nxu,nx), 
-                            work_eval_Q);
-            It.GN.block(nxu*k,nxu*k,nx,nx) += work_eval_Q;
-        } 
-        else if (k == 0){
-            mat work_eval_Q(nxu,nxu);
-            work.leftCols(nxu) = It.Jfxu.block(k*nx,0,nx,nxu);
-            work.rightCols(nx).setIdentity();
-            work.rightCols(nx) *= -1; 
-            problem.eval_add_Q(k, It.xu.segment(k*nxu,nxu), 
-                               It.hxu.segment(k*nxu,nxu),
-                               work_eval_Q);
-            It.GN.block(k*nxu,k*nxu,nxu,nxu) += work_eval_Q;
-            It.GN.block(k*nxu,k*nxu,nxu+nx,nxu+nx) += (work.transpose() * 
-                                            (μ).segment(k*nx,nx).asDiagonal()) *
-                                            (work);
-        } 
-        else {
-            mat work_eval_Q(nxu,nxu);
-            work.leftCols(nxu) = It.Jfxu.block(k*nx,0,nx,nxu);
-            work.rightCols(nx).setIdentity();
-            work.rightCols(nx) *= -1;
-            problem.eval_add_Q(k, It.xu.segment(k*nxu,nxu), 
-                               It.hxu.segment(k*nxu,nxu),
-                               work_eval_Q);
-            It.GN.block(k*nxu,k*nxu,nxu,nxu) += work_eval_Q;
-            It.GN.block(k*nxu,k*nxu,nxu+nx,nxu+nx) += (work.transpose() * 
-                                            (μ).segment(k*nx,nx).asDiagonal()) *
-                                            (work);
-        }
-    };
-
-    auto fd_grad_ψ = [&](Iterate &it, crvec μ, crvec y) {
-        
-        alpaqa::ScopedMallocAllower ma;
-        
-        real_t h = 0.001;
-        real_t ψxu_ = 0;
-        index_t N   = problem.get_N(); 
-        index_t nu  = problem.get_nu();
-        index_t nx  = problem.get_nx();
-        index_t nxu = nx + nu;
-        index_t n   = (N-1)*(nxu) + nx;
-        index_t m   = (N-1)*nx;
-        vec lxu_    = vec::Zero(N);
-        vec hxu_    = vec::Zero(n);
-        vec xu_     = vec::Zero(n); 
-        vec fxu_    = vec::Zero(m);
-        vec d       = vec::Zero(m);
-        vec v       = vec::Zero(m);
-        vec g       = vec::Zero(m);
-        Box D       = alpaqa::Box<config_t>::NaN(m);
-        problem.get_D(D);
-
-        for (index_t i = 0; i < n; ++i) {
-            xu_ = it.xu;
-            xu_(i) += h;
-            for (index_t k = 0; k < N; ++k) {
-                if (k == N-1) {
-                    problem.eval_h_N(xu_.segment(k*nxu,nx),
-                                        hxu_.segment(k*nxu,nx));
-                    lxu_(k) = problem.eval_l_N(hxu_.segment(k*nxu,nx));
-                } else {
-                    problem.eval_f(k, xu_.segment(k*nxu,nx),
-                                    xu_.segment(k*(nxu)+nx,nu), 
-                                    fxu_.segment(k*nx,nx));
-                    problem.eval_h(k, xu_.segment(k*nxu,nx), 
-                                    xu_.segment((k*nxu)+nx,nu),
-                                    hxu_.segment(k*nxu,nxu));
-                    lxu_(k) = problem.eval_l(k, hxu_.segment(k*nxu,nxu)); 
-                }
-            }
-            for (index_t k = 0; k < N-1; ++k) {
-                g.segment(k*nx,nx) = fxu_.segment(k*nx,nx) - 
-                                        xu_.segment((k+1)*nxu,nx);
-            }
-            d.noalias() = g + μ.asDiagonal().inverse()*y; 
-            v.noalias() = d - eval_proj_set(F, d); 
-            ψxu_ = lxu_.sum() + real_t(.5)*v.transpose()*(μ).asDiagonal()*v;
-            it.grad_ψ(i) = (ψxu_ - it.ψxu)/h;
-        }
     };
 
     auto calc_error_stop_crit = [this](
@@ -533,28 +336,7 @@ auto ParaPANOCSolver<Conf>::operator()(
     auto print_real3 = [&](real_t x) {
         return float_to_str_vw(print_buf, x, 3);
     };
-    auto print_progress_1 = [&](unsigned k, real_t φₖ, real_t ψₖ, crvec grad_ψₖ,
-                                real_t pₖᵀpₖ, real_t γₖ, real_t εₖ) {
-        if (k == 0){
-            *os << "┌─[ParaPANOC]\n";
-        } else {
-            *os << "├─ " << std::setw(6) << k << '\n';
-            *os << "│   φγ = " << print_real(φₖ)               //
-                << ",    ψ = " << print_real(ψₖ)               //
-                << ", ‖∇ψ‖ = " << print_real(grad_ψₖ.norm())   //
-                << ",  ‖p‖ = " << print_real(std::sqrt(pₖᵀpₖ)) //
-                << ",  ‖q‖ = " << print_real(q.norm())         //
-                << ",    γ = " << print_real(γₖ)               //
-                << ",    ε = " << print_real(εₖ) << '\n';      //
-        }
-    };
-    auto print_progress_2 = [&](crvec qₖ, real_t τₖ, bool did_gn) {
-        *os << ",  ‖q‖ = " << print_real(qₖ.norm())                       //
-            << ",    τ = " << print_real3(τₖ)                             //
-            << ",    " << (did_gn ? "GN" : "L-BFGS")                      //
-            << std::endl; // Flush for Python buffering
-    };
-    auto print_progress_3 = [&](Iterate &It, real_t &εₖ, real_t τ, unsigned k) {
+    auto print_progress_1 = [&](Iterate &It, real_t &εₖ, real_t τ, unsigned k) {
         if (k == 0){
             *os << "┌─[ParaPANOC]\n";
         } else {
@@ -566,6 +348,12 @@ auto ParaPANOCSolver<Conf>::operator()(
                 << ",    ε = " << print_real(εₖ) << '\n';
         }
     };
+    auto print_progress_2 = [&](crvec qₖ, real_t τₖ, bool did_gn) {
+        *os << ",  ‖q‖ = " << print_real(qₖ.norm())                       //
+            << ",    τ = " << print_real3(τₖ)                             //
+            << ",    " << (did_gn ? "GN" : "L-BFGS")                      //
+            << std::endl; // Flush for Python buffering
+    };
     auto print_progress_n = [&](SolverStatus status) {
         *os << "└─ " << status << " ──"
             << std::endl; // Flush for Python buffering
@@ -573,7 +361,7 @@ auto ParaPANOCSolver<Conf>::operator()(
 
     // Initialize inputs and initial state ----------------------------
 
-    curr->xu = xu;   // initial state
+    curr->xu = xu;   
     curr->xû = curr->xu;
     next->xu = curr->xu;
     next->xû = curr->xu;
@@ -634,7 +422,7 @@ auto ParaPANOCSolver<Conf>::operator()(
     // Initialize lbfgs
     lbfgs.resize(n);
     
-    // GN inital status
+    // GN initial status
     unsigned k_gn = 0; 
     bool enable_gn;
     bool enable_gn_global;
@@ -659,7 +447,7 @@ auto ParaPANOCSolver<Conf>::operator()(
         bool do_print =
             params.print_interval != 0 && k % params.print_interval == 0;
         if (do_print){
-            print_progress_3(*curr, εₖ, τ ,k);
+            print_progress_1(*curr, εₖ, τ ,k);
             print_progress_2(q, τ, did_gn);
         }
         // Return solution -----------------------------------------------------
@@ -670,7 +458,7 @@ auto ParaPANOCSolver<Conf>::operator()(
         if (stop_status != SolverStatus::Busy) {
             bool do_final_print = params.print_interval != 0;
             if (!do_print && do_final_print){
-                print_progress_3(*curr, εₖ, τ, k);
+                print_progress_1(*curr, εₖ, τ, k);
                 print_progress_2(q, τ, did_gn);
             }
             if (do_print || do_final_print)
@@ -705,7 +493,7 @@ auto ParaPANOCSolver<Conf>::operator()(
             q.segment(0,nx).setZero();
             q.segment(nx,n-nx) = - curr->GN.block(nx,nx,n-nx,n-nx).inverse()*curr->grad_ψ.segment(nx,n-nx);
             τ_init = 1;
-            ++k_gn;
+            k_gn = k + params.gn_interval;
         }
 
         // Calculate quasi-Newton step -----------------------------------------
@@ -836,7 +624,7 @@ auto ParaPANOCSolver<Conf>::operator()(
 
         // Check if the solver should use GN step in the next step
         ((τ == 1) && (enable_gn == true)) || 
-        ((k == k_gn*params.gn_interval) && (enable_gn_global == true)) ? 
+        ((k == k_gn) && (enable_gn_global == true)) ? 
                         enable_gn = true : enable_gn = false;
 
         // Update L-BFGS -------------------------------------------------------

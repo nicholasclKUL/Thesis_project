@@ -30,9 +30,13 @@ convergence to ALM; This aligns with (4); for the ALM we only need a rough estim
 
 UNSOLVED PROBLEMS AND NEXT STEPS:
 
--> Parallelize L-BFGS
+-> Parallelize L-BFGS;
 
--> Gauss-Newton derived for NO box constraints in the states and input. Derive Gauss-Newton for box constraints on both! Start derivation from Jacobian of Fixed-Point Residual or system 6.23 from "Pas - A matrix-free nonlinear solver" 
+-> Gauss-Newton derived for NO box constraints in the states and input. Derive Gauss-Newton for box constraints on both! Start derivation from Jacobian of Fixed-Point Residual or system 6.23 from "Pas - A matrix-free nonlinear solver";
+
+-> Add sparse solver for GN step;
+
+-> exclude x0 from solver calculations;
 
 -> Next improvements to the code: 
 	-> Add AD interface using SACADO; 

@@ -82,6 +82,8 @@
         "*.inc": "cpp",
         "shared_mutex": "cpp",
         "jacobi": "cpp",
-        "cassert": "cpp"
+        "cassert": "cpp",
+        "codecvt": "cpp",
+        "valarray": "cpp"
     },
 }

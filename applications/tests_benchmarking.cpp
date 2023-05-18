@@ -17,7 +17,6 @@
 #include <linear_dynamics.hpp>
 #include <hanging_chain.hpp>
 #include <quadcopter.hpp>
-#include <quadcopter_AD.hpp>
 
 #include <iomanip>
 #include <iostream>
@@ -27,30 +26,17 @@
 
 int main() {
 
-    Kokkos::initialize(Kokkos::InitializationSettings().set_num_threads(4));
-
     USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<QuadcopterAD>();
+    // Create Problem
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<NonlinearOCP1>();
 
     // Problem dimensions
-    //SS
-    const auto n = problem.get_N() * problem.get_nu(),
-               m = problem.get_N() * problem.get_nc() + problem.get_nc_N();
-    //MS-Parallel
     const auto n_ms = (problem.get_nx()+problem.get_nu())*(problem.get_N())+problem.get_nx(),
                m_ms = problem.get_nx()*(problem.get_N()),
                nt = problem.get_N()+1;
 
-    // Initial guess and other solver inputs
-    //SS
-    vec x = vec::Zero(n); // Inputs
-    vec y = vec::Zero(m); // Lagrange multipliers
-    vec μ = vec::Ones(m); // Penalty factors
-    vec e(m);             // Constraint violation
-    problem.get_x_init(x);
-
-    //MS-Parallel
+    // Containers
     vec xu = vec::Zero(n_ms);   // Inputs
     vec y_ms = vec::Zero(m_ms); // Lagrange multipliers
     vec μ_ms = vec::Ones(m_ms); // Penalty factors
@@ -58,7 +44,7 @@ int main() {
     vec g_ms(m_ms);             // Continuity violation
     problem.get_x_init(xu);
 
-    // Solver
+    // Solver Options
     // Inner:
     alpaqa::PANOCOCPParams<config_t> params;
     params.stop_crit = alpaqa::PANOCStopCrit::ProjGradNorm2;
@@ -72,15 +58,11 @@ int main() {
     almparams.max_iter = 1000;
     almparams.print_interval = 0;
 
-    //MS
+    // Solve
     alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver_ms{almparams,{params}};
+    Kokkos::initialize(Kokkos::InitializationSettings().set_num_threads(1));
     auto stats_ms = almsolver_ms(problem, xu, y_ms, nt);
     Kokkos::finalize();
     printing::print_stats_outer(stats_ms);
-
-    //SS
-    alpaqa::ALMSolver<alpaqa::PANOCOCPSolver<config_t>> almsolver_ss{almparams,{params}};
-    auto stats_ss = almsolver_ss(problem, x, y);
-    printing::print_stats_outer(stats_ss);
 
 }

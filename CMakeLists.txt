@@ -21,6 +21,7 @@ find_package(Eigen3 REQUIRED)
 find_package(alpaqa REQUIRED)
 find_package(OpenMP REQUIRED) #add OpenMP::OpenMP<CXX> to the file I am calling it
 find_package(Threads REQUIRED)
+find_package(Sacado REQUIRED)
 
 add_subdirectory(src)
 add_subdirectory(problems)

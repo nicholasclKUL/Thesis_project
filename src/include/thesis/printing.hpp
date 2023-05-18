@@ -39,7 +39,6 @@ void print_solution_ss (P &problem, crvec u) {
     }
 }
 
-
 void print_stats_inner (Stats_inner &stats, crvec e){
     auto δ    = e.lpNorm<Eigen::Infinity>();
     auto time = std::chrono::duration<double>(stats.elapsed_time).count();
@@ -55,6 +54,25 @@ void print_stats_inner (Stats_inner &stats, crvec e){
               << "step size backtrack:   " << std::setw(6)
               << stats.stepsize_backtracks << '\n'
               << "solution: "<<'\n';
+}
+
+void print_stats_outer (Stats_outer_ms stats, crvec g){
+    std::cout<<'\n'<<"--[FINAL REPORT]--"<<'\n'<<std::endl;
+    std::cout   << "status: " << stats.status << '\n'
+                << "inner iterations: " << stats.inner.iterations << '\n'
+                << "outer iterations: " << stats.outer_iterations << '\n'
+                << "ε = " << stats.ε << '\n'
+                << "δ = " << stats.δ << '\n'
+                << "Δg = " << g.norm() << '\n'
+                << "elapsed time:     "
+                << std::chrono::duration<double>{stats.elapsed_time}.count()
+                << " s" << '\n'
+                << "avg τ = " << (stats.inner.sum_τ / stats.inner.count_τ) << '\n'
+                << "L-BFGS rejected = " << stats.inner.lbfgs_rejected << '\n'
+                << "L-BFGS failures = " << stats.inner.lbfgs_failures << '\n'
+                << "Line search failures = " << stats.inner.linesearch_failures
+                << '\n'
+                << std::endl;
 }
 
 void print_stats_outer (Stats_outer_ms stats){
