@@ -17,7 +17,7 @@
 #include <linear_dynamics.hpp>
 #include <hanging_chain.hpp>
 #include <quadcopter.hpp>
-#include <quadcopter_AD.hpp>
+//#include <quadcopter_AD.hpp>
 
 #include <iomanip>
 #include <iostream>
@@ -31,7 +31,7 @@ int main() {
 
     USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<QuadcopterAD>();
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<HangingChain>();
 
     // Problem dimensions
     //SS
@@ -63,24 +63,26 @@ int main() {
     alpaqa::PANOCOCPParams<config_t> params;
     params.stop_crit = alpaqa::PANOCStopCrit::ProjGradNorm2;
     params.gn_interval = 0;
-    params.print_interval = 0;
+    params.print_interval = 2;
     params.max_iter = 10000;
     params.disable_acceleration = false;
     // Outer:
     alpaqa::ALMParams almparams; 
     almparams.tolerance = 1e-4;
     almparams.max_iter = 1000;
-    almparams.print_interval = 0;
+    almparams.print_interval = 2;
 
     //MS
     alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver_ms{almparams,{params}};
     auto stats_ms = almsolver_ms(problem, xu, y_ms, nt);
     Kokkos::finalize();
     printing::print_stats_outer(stats_ms);
+    printing::print_solution(problem, xu);
 
     //SS
     alpaqa::ALMSolver<alpaqa::PANOCOCPSolver<config_t>> almsolver_ss{almparams,{params}};
     auto stats_ss = almsolver_ss(problem, x, y);
     printing::print_stats_outer(stats_ss);
+    printing::print_solution_ss(problem,x);
 
 }

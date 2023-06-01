@@ -7,6 +7,10 @@
 #include <thesis/para-alm.hpp>
 #include <thesis/para-panoc.hpp>
 
+#include <iomanip>
+#include <iostream>
+#include <fstream>
+
 namespace printing {
 
 USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
@@ -109,6 +113,48 @@ void print_stats_outer (Stats_outer_ss stats){
                 << "Line search failures = " << stats.inner.linesearch_failures
                 << '\n'
                 << std::endl;
+}
+
+template <typename P>
+void output_file (P &problem, std::string &problem_name, crvec xu, index_t Ts){
+    auto N = problem.get_N(),
+        nu = problem.get_nu(),
+        nx = problem.get_nx();
+    // create 1st option of possible file name
+    std::string filename = problem_name + "_" + std::to_string(problem.get_N())
+                        + "_" + std::to_string(Ts) + "_" + std::to_string(0) + ".csv";
+    // search for available names
+    FILE *file_check;
+    unsigned int k = 1;  
+    const char* filename_ = filename.c_str();
+    file_check = std::fopen(filename_,"r");
+    while ((file_check != NULL) && (k <= 1000)){
+        filename = problem_name + "_" + std::to_string(problem.get_N())
+                + "_" + std::to_string(Ts) + "_" + std::to_string(k) + ".csv";
+        filename_ = filename.c_str();
+        file_check = std::fopen(filename_,"r");
+        ++k;
+    }
+    // open/create file
+    std::ofstream myfile(filename_);
+    // fill in header
+    for (size_t i = 0; i < nx; ++i){
+        myfile<<"x_"<<i<<","<<std::setw(14);
+    }
+    for (size_t i = 0; i < nu; ++i){
+        myfile<<"u_"<<i<<","<<std::setw(14);
+    }
+    myfile<<std::endl;
+    // fill in data for 
+    for (size_t i = 0; i < N; ++i){
+        for (size_t j = 0; j < nx+nu; ++j){
+            myfile<<std::scientific<<xu((i*(nx+nu))+j)<<","<<std::setw(14);   
+        }  
+        myfile<<'\n';
+    }
+    myfile<<std::endl;   
+    // close file
+    myfile.close();
 }
 
 }

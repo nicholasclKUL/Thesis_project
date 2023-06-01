@@ -15,18 +15,21 @@ struct Quadcopter{
 
   using Box = alpaqa::Box<config_t>;
 
+  length_t  T = 3;                      ///< Time horizon (s) 
+
   // OCP parameters:
-  length_t N = 60,                    ///< Horizon length
-          nu = 4,                     ///< Number of inputs
-          nx = 12,                    ///< Number of states  
-          nh = nu + nx,               ///< Number of stage outputs
-        nh_N = nx,                    ///< Number of terminal outputs
-          nc = 0,                     ///< Number of stage constraints
-        nc_N = 0,                     ///< Number of terminal constraints
-           n = ((nx + nu) * N) - nu;  ///< Total number of decision variables 
+  length_t Ns = 60,                    ///< Horizon length / second
+            N = Ns*T,                  ///< Total horizon length
+           nu = 4,                     ///< Number of inputs
+           nx = 12,                    ///< Number of states  
+           nh = nu + nx,               ///< Number of stage outputs
+         nh_N = nx,                    ///< Number of terminal outputs
+           nc = 0,                     ///< Number of stage constraints
+         nc_N = 0,                     ///< Number of terminal constraints
+            n = ((nx + nu) * N) - nu;  ///< Total number of decision variables 
 
   // Dynamics and discretization parameters:
-  real_t Ts = 1/real_t(N),          ///< Discretization step length
+  real_t Ts = real_t(T)/real_t(N),          ///< Discretization step length
          g  = 9.81,                     
          M  = 0.65,                 
          I  = 0.23,
@@ -41,9 +44,14 @@ struct Quadcopter{
          b2 = I/Jy,
          b3 = I/Jz;
 
-  mat A, B;
+  // QR matrix diagonal:
+  vec Q, R, QR; 
 
-  Quadcopter() : A(nx, nx), B(nx, nu) {}
+  Quadcopter() : Q(nx), R(nu), QR(nx+nu) {
+    Q << 200, 200, 500, 50, 50, 50, 100, 100, 100, 90, 90, 90;
+    R << 0.005, 0.005, 0.005, 0.005;
+    QR << Q, R;
+  }
 
   [[nodiscard]] length_t get_N() const { return N; }
   [[nodiscard]] length_t get_nu() const { return nu; }
@@ -65,57 +73,22 @@ struct Quadcopter{
 
   void get_D_N(Box &D) const {}
 
-  // void get_x_init(rvec x_init) const { 
-  //   if (x_init.size() == N*nu)
-  //   {
-  //     x_init.setConstant(0.);
-  //   }
-  //   else {
-  //     for (size_t i = 0; i < N+1; ++i)
-  //     {
-  //       if (i == N)
-  //       {
-  //         x_init(((nx+nu)*i)) = 0.3;
-  //         x_init(((nx+nu)*i)+1) = 1;
-  //         x_init(((nx+nu)*i)+2) = -0.4;
-  //         x_init(((nx+nu)*i)+3) = 1;
-  //         x_init(((nx+nu)*i)+4) = 0.2;
-  //         x_init(((nx+nu)*i)+5) = 1;
-  //         x_init(((nx+nu)*i)+6) = 0;
-  //         x_init(((nx+nu)*i)+7) = 1;
-  //         x_init(((nx+nu)*i)+8) = 0;
-  //         x_init(((nx+nu)*i)+9) = 1;
-  //         x_init(((nx+nu)*i)+10) = 0;
-  //         x_init(((nx+nu)*i)+11) = -1;    
-  //       } 
-  //       else {
-  //         x_init(((nx+nu)*i)) = 0.3;
-  //         x_init(((nx+nu)*i)+1) = 1;
-  //         x_init(((nx+nu)*i)+2) = -0.4;
-  //         x_init(((nx+nu)*i)+3) = 1;
-  //         x_init(((nx+nu)*i)+4) = 0.2;
-  //         x_init(((nx+nu)*i)+5) = 1;
-  //         x_init(((nx+nu)*i)+6) = 0;
-  //         x_init(((nx+nu)*i)+7) = 1;
-  //         x_init(((nx+nu)*i)+8) = 0;
-  //         x_init(((nx+nu)*i)+9) = 1;
-  //         x_init(((nx+nu)*i)+10) = 0;
-  //         x_init(((nx+nu)*i)+11) = -1;
-  //         x_init(((nx+nu)*i)+12) = 0;
-  //         x_init(((nx+nu)*i)+13) = 0;
-  //         x_init(((nx+nu)*i)+14) = 0;
-  //         x_init(((nx+nu)*i)+15) = 0; 
-  //       } 
-  //     }
-  //   }
-  // }
-
   void get_x_init(rvec x_init) const {
-    x_init.setConstant(1.);
+    if (x_init.size() == nu*N){
+      x_init.setConstant(0);
+    }
+    else{
+      x_init.setConstant(0.);
+      for (size_t i = 0; i < N-1; ++i){
+        x_init(6+(i*(nx+nu))) = 1; //x
+        x_init(8+(i*(nx+nu))) = 1; //y
+        x_init(10+(i*(nx+nu))) = 1; //z
+      }
+    }
   }
 
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const { 
-    // alpaqa::ScopedMallocAllower ma;
+    alpaqa::ScopedMallocAllower ma;
 
     fxu(0) = x(0) + Ts * x(1);
     fxu(1) = x(1) + Ts * (a1*x(3)*x(5) + b1*u(1));
@@ -132,7 +105,7 @@ struct Quadcopter{
   } // *discretized using Explicit Euler
 
   void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
-    // alpaqa::ScopedMallocAllower ma;
+    alpaqa::ScopedMallocAllower ma;
 
     // "self"-derivatives
     Jfxu.setIdentity();
@@ -187,7 +160,7 @@ struct Quadcopter{
 
   void eval_grad_f_prod(index_t timestep, crvec x, crvec u, crvec p,
                         rvec grad_fxu_p) const {
-    // alpaqa::ScopedMallocAllower ma;
+    alpaqa::ScopedMallocAllower ma;
 
     mat Jfxu(nx,nx+nu); Jfxu.setZero();
     
@@ -243,43 +216,48 @@ struct Quadcopter{
     grad_fxu_p.noalias() = Jfxu.transpose() * p;
   }
 
-    void eval_h([[maybe_unused]] index_t timestep, crvec x, crvec u, rvec h) const {
-        // alpaqa::ScopedMallocAllower ma;
-        h.topRows(nx)    = x;
-        h.bottomRows(nu) = u;
-    }
-    void eval_h_N(crvec x, rvec h) const { h = x; }
+  void eval_h([[maybe_unused]] index_t timestep, crvec x, crvec u, rvec h) const {        
+    alpaqa::ScopedMallocAllower ma;
+    h.topRows(nx)    = x;
+    h.bottomRows(nu) = u;
+  }
 
-    [[nodiscard]] real_t eval_l([[maybe_unused]] index_t timestep, crvec h) const {
-        // alpaqa::ScopedMallocAllower ma;
-        return 0.5 * h.squaredNorm();
-    }
-    [[nodiscard]] real_t eval_l_N(crvec h) const {
-        // alpaqa::ScopedMallocAllower ma;
-        return 5. * h.squaredNorm();
-    }
-    void eval_qr([[maybe_unused]] index_t timestep, 
-                 [[maybe_unused]] crvec xu, crvec h, rvec qr) const {
-        // alpaqa::ScopedMallocAllower ma;
-        auto Jh_xu    = mat::Identity(nx + nu, nx + nu);
-        auto &&grad_l = h;
-        qr            = Jh_xu.transpose() * grad_l;
-    }
-    void eval_q_N([[maybe_unused]] crvec x, crvec h, rvec q) const {
-        // alpaqa::ScopedMallocAllower ma;
-        auto Jh_x     = mat::Identity(nx, nx);
-        auto &&grad_l = 10 * h;
-        q             = Jh_x.transpose() * grad_l;
-    }
+  void eval_h_N(crvec x, rvec h) const { h = x; }
+
+  [[nodiscard]] real_t eval_l([[maybe_unused]] index_t timestep, crvec h) const {      
+    alpaqa::ScopedMallocAllower ma;
+    return h.transpose() * QR.asDiagonal() * h;
+  }
+
+  [[nodiscard]] real_t eval_l_N(crvec h) const {      
+    alpaqa::ScopedMallocAllower ma;
+    return 5 * h.transpose()* Q.asDiagonal() * h;
+  }
+
+  void eval_qr([[maybe_unused]] index_t timestep, 
+              [[maybe_unused]] crvec xu, crvec h, rvec qr) const {
+      alpaqa::ScopedMallocAllower ma;
+      auto Jh_xu    = mat::Identity(nx + nu, nx + nu);
+      auto &&grad_l = QR.asDiagonal() * h;
+      qr            = Jh_xu.transpose() * grad_l;
+  }
+
+  void eval_q_N([[maybe_unused]] crvec x, crvec h, rvec q) const {
+      alpaqa::ScopedMallocAllower ma;
+      auto Jh_x     = mat::Identity(nx, nx);
+      auto &&grad_l = 10 * Q.asDiagonal() * h;
+      q             = Jh_x.transpose() * grad_l;
+  }
+
     void eval_add_Q([[maybe_unused]] index_t timestep, 
                     [[maybe_unused]] crvec xu, 
                     [[maybe_unused]] crvec h, rmat Q) const {
-        // alpaqa::ScopedMallocAllower ma;
+        alpaqa::ScopedMallocAllower ma;
         Q += mat::Identity(nx, nx);   
     }
     void eval_add_Q_N([[maybe_unused]] crvec x,
                       [[maybe_unused]] crvec h, rmat Q) const {
-        // alpaqa::ScopedMallocAllower ma;
+        alpaqa::ScopedMallocAllower ma;
         Q += 10 * mat::Identity(nx, nx);
     }
     void eval_add_R_masked([[maybe_unused]] index_t timestep,
@@ -287,7 +265,7 @@ struct Quadcopter{
                            [[maybe_unused]] crvec h, crindexvec mask,
                            rmat R, 
                            [[maybe_unused]] rvec work) const {
-        // alpaqa::ScopedMallocAllower ma;
+        alpaqa::ScopedMallocAllower ma;
         const auto n = mask.size();
         R.noalias() += mat::Identity(n, n);
     }
@@ -306,7 +284,7 @@ struct Quadcopter{
                                 rvec out, 
                                 [[maybe_unused]] rvec work) const {
         // The following has no effect because R is diagonal, and J ∩ K = ∅
-        // alpaqa::ScopedMallocAllower ma;
+        alpaqa::ScopedMallocAllower ma;
         auto R = mat::Identity(nu, nu);
         out.noalias() += R(mask_J, mask_K) * v(mask_K);
     }

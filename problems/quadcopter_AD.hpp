@@ -22,63 +22,62 @@ USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 template <typename X, typename J>
 void dynamics(index_t &k, X &xu, J &fxu,
              real_t Ts, real_t a1, real_t a2, real_t a3,
-             real_t b1, real_t b2, real_t b3,
-             real_t M, real_t g){
-
+             real_t b1, real_t b2, real_t M, real_t g){
     fxu(0) = xu(0) + Ts * xu(1);
     fxu(1) = xu(1) + Ts * (a1*xu(3)*xu(5) + b1*xu(13));
     fxu(2) = xu(2) + Ts * xu(3);    
     fxu(3) = xu(3) + Ts * (a2*xu(1)*xu(5) + b2*xu(14));
     fxu(4) = xu(4) + Ts * xu(5);
-    fxu(5) = xu(5) + Ts * (a3*xu(1)*xu(3) + b3*xu(15));
+    fxu(5) = xu(5) + Ts * (a3*xu(1)*xu(3) + b1*xu(15));
     fxu(6) = xu(6) + Ts * xu(7);
-    fxu(7) = xu(7) + Ts * (cos(xu(0))*sin(xu(2))*cos(xu(4)) + sin(xu(0))*sin(xu(4))) * xu(12) / M;
+    fxu(7) = xu(7) + Ts * (cos(xu(0))*sin(xu(2))*cos(xu(4)) + sin(xu(0))*sin(xu(4))) * xu(15) / M;
     fxu(8) = xu(8) + Ts * xu(9);
-    fxu(9) = xu(9) + Ts * (cos(xu(0))*sin(xu(2))*sin(xu(4)) - sin(xu(0))*cos(xu(4))) * xu(12) / M;
+    fxu(9) = xu(9) + Ts * (cos(xu(0))*sin(xu(2))*sin(xu(4)) - sin(xu(0))*cos(xu(4))) * xu(15) / M;
     fxu(10) = xu(10) + Ts * xu(11);
-    fxu(11) = xu(11) + Ts * (cos(xu(0))*cos(xu(2))) * xu(12) / (M-g);
-
+    fxu(11) = xu(11) + Ts * (cos(xu(0))*cos(xu(2))) * xu(15) / (M-g);
 }
 
 // Output Mapping
-template <typename T>
-void h(index_t &k, T &xu, T &h){
-    h = xu;
+template <typename X, typename H>
+void h_ad(index_t &k, X &xu, H &h){
+  for (size_t i = 0; i < xu.size(); ++i){
+    h(i) = xu(i);
+  }
 }
 
 // Cost function
-template <typename T>
-real_t l(index_t &k, T &h){
-  0.5 * h.squaredNorm();
+template <typename H, typename L, typename QR>
+void l_ad(index_t &k, H &h, L &l, QR &qr){
+  for (size_t i = 0; i < h.size(); ++i){
+    l = h*qr*h;
+  }
 }
 
-// Terminal Cost function
-template <typename T>
-real_t l(T &h){
-  5 * h.squaredNorm();
-}
+// Horizon length, number of states and input for compile time allocation of AD views
+const int p_N = 180, p_nx = 12, p_nu = 4, p_nh = 16; 
 
-// Horizon length, number of states and input for compile time allocation
-const int p_N = 60, p_nx = 12, p_nu = 4;
-
+using AD_obj = AD<p_nx+p_nu,p_nx,p_nh>;
 
 // Create the Control Problem object to pass on to the Solver
 struct QuadcopterAD{
 
   using Box = alpaqa::Box<config_t>;
 
+  length_t  T = 3;                      ///< Time horizon (s) 
+
   // OCP parameters:
-  length_t N = p_N,                   ///< Horizon length
-          nu = p_nu,                  ///< Number of inputs
-          nx = p_nx,                  ///< Number of states  
-          nh = nu + nx,               ///< Number of stage outputs
-        nh_N = nx,                    ///< Number of terminal outputs
-          nc = 0,                     ///< Number of stage constraints
-        nc_N = 0,                     ///< Number of terminal constraints
-           n = ((nx + nu) * N) - nu;  ///< Total number of decision variables 
+  length_t Ns = 60,                    ///< Horizon length / second
+            N = Ns*T,                  ///< Total horizon length
+           nu = 4,                     ///< Number of inputs
+           nx = 12,                    ///< Number of states  
+           nh = nu + nx,               ///< Number of stage outputs
+         nh_N = nx,                    ///< Number of terminal outputs
+           nc = 0,                     ///< Number of stage constraints
+         nc_N = 0,                     ///< Number of terminal constraints
+            n = ((nx + nu) * N) - nu;  ///< Total number of decision variables 
 
   // Dynamics and discretization parameters:
-  real_t Ts = 1/real_t(N),          ///< Discretization step length
+  real_t Ts = real_t(T)/real_t(N),          ///< Discretization step length
          g  = 9.81,                     
          M  = 0.65,                 
          I  = 0.23,
@@ -92,13 +91,18 @@ struct QuadcopterAD{
          b1 = I/Jx,
          b2 = I/Jy,
          b3 = I/Jz;
+  
+  // QR matrix diagonal:
+  vec Q, R, QR; 
 
   // Automatic Differentiation object:
-  AD<p_nu+p_nx,p_nx> jac_ad[p_N]; 
+  AD_obj ad_obj[p_N]; 
 
-  mat A, B;
-
-  QuadcopterAD() : A(nx, nx), B(nx, nu) {}
+  QuadcopterAD() : Q(nx), R(nu), QR(nx+nu) {
+    Q << 200, 200, 500, 50, 50, 50, 100, 100, 100, 90, 90, 90;
+    R << 0.005, 0.005, 0.005, 0.005;
+    QR << Q, R;
+  }
 
   [[nodiscard]] length_t get_N() const { return N; }
   [[nodiscard]] length_t get_nu() const { return nu; }
@@ -121,11 +125,22 @@ struct QuadcopterAD{
   void get_D_N(Box &D) const {}
 
   void get_x_init(rvec x_init) const {
-    x_init.setConstant(1.);
+    if (x_init.size() == nu*N){
+      x_init.setConstant(0);
+    }
+    else{
+      x_init.setConstant(0.);
+      for (size_t i = 0; i < N-1; ++i){
+        x_init(0+(i*(nx+nu))) = -0.25; //x
+        x_init(1+(i*(nx+nu))) = 0.51; //y
+        x_init(2+(i*(nx+nu))) = 0.32; //z
+      }
+    }
   }
 
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const { 
-    
+    alpaqa::ScopedMallocAllower ma;
+
     fxu(0) = x(0) + Ts * x(1);
     fxu(1) = x(1) + Ts * (a1*x(3)*x(5) + b1*u(1));
     fxu(2) = x(2) + Ts * x(3);    
@@ -142,41 +157,35 @@ struct QuadcopterAD{
   } // *discretized using Explicit Euler
 
   void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
+    alpaqa::ScopedMallocAllower ma;
 
     // Assign values of x and u to their respective views
-    assign_values_xu<16,12>(x, u, jac_ad[timestep]);
+    assign_values_xu<p_nx+p_nu,p_nx,p_nh>(x, u, ad_obj[timestep]);
 
     // Calculate Jacobian of system dynamics using AD
-    dynamics(timestep, jac_ad[timestep].xu_fad, jac_ad[timestep].fxu_fad, Ts, a1, a2, a3, b1, b2, b3, M, g);
+    dynamics(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, 
+              Ts, a1, a2, a3, b1, b2, M, g);
    
     // Assigning Jfxu AD view to input container
-    for (size_t i = 0; i < nx; ++i){
-      for (size_t j = 0; j < nx+nu; j++){
-        Jfxu(i,j) = jac_ad[timestep].fxu_fad(i).fastAccessDx(j);
-      }
-    }
+    assign_values<p_nx+p_nu,p_nx,p_nh>(Jfxu, ad_obj[timestep]);
 
   }
 
   void eval_grad_f_prod(index_t timestep, crvec x, crvec u, crvec p,
                         rvec grad_fxu_p) const {
+    alpaqa::ScopedMallocAllower ma;
 
-    // Assign values of x and u to their respective views
-    assign_values_xu<16,12>(x, u, jac_ad[timestep]);
+    assign_values_xu<p_nx+p_nu,p_nx,p_nh>(x, u, ad_obj[timestep]);
 
-    // Calculate Jacobian of system dynamics using AD
-    dynamics(timestep, jac_ad[timestep].xu_fad, jac_ad[timestep].fxu_fad, Ts, a1, a2, a3, b1, b2, b3, M, g);
+    dynamics(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, 
+              Ts, a1, a2, a3, b1, b2, M, g);
     
-    // Assigning grad-vector product to input container
-    for (size_t i = 0; i < nx+nu; ++i){
-      for (size_t j = 0; j < nx; j++){
-        grad_fxu_p(i) += jac_ad[timestep].fxu_fad(j).fastAccessDx(i)*p(j);
-      }
-    }
+    assign_values<p_nx+p_nu,p_nx,p_nh> (grad_fxu_p, p, ad_obj[timestep]);
 
   }
 
   void eval_h([[maybe_unused]] index_t timestep, crvec x, crvec u, rvec h) const {        
+    alpaqa::ScopedMallocAllower ma;
     h.topRows(nx)    = x;
     h.bottomRows(nu) = u;
   }
@@ -184,38 +193,40 @@ struct QuadcopterAD{
   void eval_h_N(crvec x, rvec h) const { h = x; }
 
   [[nodiscard]] real_t eval_l([[maybe_unused]] index_t timestep, crvec h) const {      
-    return 0.5 * h.squaredNorm();
+    alpaqa::ScopedMallocAllower ma;
+    return h.transpose() * QR.asDiagonal() * h;
   }
 
   [[nodiscard]] real_t eval_l_N(crvec h) const {      
-    return 5. * h.squaredNorm();
+    alpaqa::ScopedMallocAllower ma;
+    return 5 * h.transpose()* Q.asDiagonal() * h;
   }
 
   void eval_qr([[maybe_unused]] index_t timestep, 
               [[maybe_unused]] crvec xu, crvec h, rvec qr) const {
-      
-      auto Jh_xu    = mat::Identity(nx + nu, nx + nu);
-      auto &&grad_l = h;
-      qr            = Jh_xu.transpose() * grad_l;
+    alpaqa::ScopedMallocAllower ma;
+    auto Jh_xu    = mat::Identity(nx + nu, nx + nu);
+    auto &&grad_l = QR.asDiagonal() * h;
+    qr            = Jh_xu.transpose() * grad_l;
   }
 
   void eval_q_N([[maybe_unused]] crvec x, crvec h, rvec q) const {
-      
+      alpaqa::ScopedMallocAllower ma;
       auto Jh_x     = mat::Identity(nx, nx);
-      auto &&grad_l = 10 * h;
+      auto &&grad_l = 10 * Q.asDiagonal() * h;
       q             = Jh_x.transpose() * grad_l;
   }
 
   void eval_add_Q([[maybe_unused]] index_t timestep, 
                   [[maybe_unused]] crvec xu, 
                   [[maybe_unused]] crvec h, rmat Q) const {
-      
+      alpaqa::ScopedMallocAllower ma;
       Q += mat::Identity(nx, nx);   
   }
 
   void eval_add_Q_N([[maybe_unused]] crvec x,
                     [[maybe_unused]] crvec h, rmat Q) const {
-      
+      alpaqa::ScopedMallocAllower ma;
       Q += 10 * mat::Identity(nx, nx);
   }
 
@@ -224,7 +235,7 @@ struct QuadcopterAD{
                         [[maybe_unused]] crvec h, crindexvec mask,
                         rmat R, 
                         [[maybe_unused]] rvec work) const {
-      
+      alpaqa::ScopedMallocAllower ma;
       const auto n = mask.size();
       R.noalias() += mat::Identity(n, n);
   }
@@ -245,7 +256,7 @@ struct QuadcopterAD{
                               rvec out, 
                               [[maybe_unused]] rvec work) const {
       // The following has no effect because R is diagonal, and J ∩ K = ∅
-      
+      alpaqa::ScopedMallocAllower ma;
       auto R = mat::Identity(nu, nu);
       out.noalias() += R(mask_J, mask_K) * v(mask_K);
   }

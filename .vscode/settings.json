@@ -84,6 +84,9 @@
         "jacobi": "cpp",
         "cassert": "cpp",
         "codecvt": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "strstream": "cpp",
+        "cfenv": "cpp",
+        "typeindex": "cpp"
     },
 }

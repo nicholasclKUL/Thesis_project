@@ -116,11 +116,10 @@ auto ParaPANOCSolver<Conf>::operator()(
     // Allocate storage --------------------------------------------------------
 
     vec q(n); // Newton step, including states
-    Box<config_t> U   = Box<config_t>::NaN(nu);   
-    Box<config_t> D   = Box<config_t>::NaN(nx);
-    Box<config_t> D_N = Box<config_t>::NaN(nx);
-    Box<config_t> F   = Box<config_t>::NaN(nx); 
-    Box<config_t> Dfd = Box<config_t>::NaN(m); 
+    Box<config_t> U   = Box<config_t>::NaN(nu);     // Input box constraints
+    Box<config_t> D   = Box<config_t>::NaN(nx);     // State box constraints     
+    Box<config_t> D_N = Box<config_t>::NaN(nx);     // Final state box constraints
+    Box<config_t> F   = Box<config_t>::NaN(nx);     // Dynamic box constraints (set equal 0)
 
     F.lowerbound.setConstant(0);
     F.upperbound.setConstant(0);
