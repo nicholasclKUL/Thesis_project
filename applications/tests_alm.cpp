@@ -15,7 +15,7 @@
 
 #include <nonlinear_example1.hpp>
 #include <linear_dynamics.hpp>
-#include <hanging_chain.hpp>
+//#include <hanging_chain.hpp>
 #include <quadcopter.hpp>
 //#include <quadcopter_AD.hpp>
 
@@ -31,7 +31,7 @@ int main() {
 
     USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<HangingChain>();
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<Quadcopter>();
 
     // Problem dimensions
     //SS

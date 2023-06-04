@@ -18,7 +18,7 @@ struct Quadcopter{
   length_t  T = 3;                      ///< Time horizon (s) 
 
   // OCP parameters:
-  length_t Ns = 60,                    ///< Horizon length / second
+  length_t Ns = 10,                    ///< Horizon length / second
             N = Ns*T,                  ///< Total horizon length
            nu = 4,                     ///< Number of inputs
            nx = 12,                    ///< Number of states  
@@ -74,15 +74,18 @@ struct Quadcopter{
   void get_D_N(Box &D) const {}
 
   void get_x_init(rvec x_init) const {
-    if (x_init.size() == nu*N){
+    if (x_init.size() <= nu*N){
       x_init.setConstant(0);
+      x_init(0) = -0.25;
+      x_init(1) = 0.51;
+      x_init(2) = 0.32;
     }
     else{
       x_init.setConstant(0.);
       for (size_t i = 0; i < N-1; ++i){
-        x_init(6+(i*(nx+nu))) = 1; //x
-        x_init(8+(i*(nx+nu))) = 1; //y
-        x_init(10+(i*(nx+nu))) = 1; //z
+        x_init(0+(i*(nx+nu))) = -0.25; //x
+        x_init(1+(i*(nx+nu))) = 0.51; //y
+        x_init(2+(i*(nx+nu))) = 0.32; //z
       }
     }
   }

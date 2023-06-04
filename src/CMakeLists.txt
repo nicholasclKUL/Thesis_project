@@ -9,6 +9,7 @@ add_library(thesis
 #"include/thesis/ms-accelerators.hpp"
 "include/thesis/para-panoc-helpers.hpp"
 "include/thesis/auto-diff-sacado-helpers.hpp"
+"include/thesis/ocp-kkt-error.hpp"
 )
 
 target_link_libraries(thesis PRIVATE Kokkos::kokkos)

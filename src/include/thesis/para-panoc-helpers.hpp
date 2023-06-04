@@ -57,8 +57,35 @@ void eval_iterate_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec y, 
     }
 } 
 
+// template <typename Problem>
+// void eval_grad_f_plus_prod_grad_g_y(int k, Problem &problem, rvec grad_L_or_ψ, mat Jfxu, crvec qr, crvec y){ 
+    
+//     auto nx = problem.get_nx();
+//     auto nu = problem.get_nu();
+//     auto nxu = problem.get_nx() + problem.get_nu(); 
+//     auto N = problem.get_N() + 1;
+    
+//     Eigen::Index k_ = k;
+
+//     if (k_ == N-1){
+//         grad_L_or_ψ.segment(k*nxu,nx) = qr.segment(k*nxu,nx) - y.segment((k-1)*nx,nx);                            
+//     } 
+//     else if(k_ == 0){
+//         grad_L_or_ψ.segment(nx,nu) = qr.segment(nx,nu) +
+//                     Jfxu.block(0,nx,nx,nu).transpose() * y.segment(k*nx,nx);
+//         grad_L_or_ψ.segment(0,nx).setZero();
+//     }
+//     else {
+//         grad_L_or_ψ.segment(k*nxu,nxu) = qr.segment(k*nxu,nxu) - mat::Identity(nxu, nx)*y.segment((k-1)*nx,nx) +
+//                     Jfxu.block(k*nx,0,nx,nxu).transpose() * y.segment(k*nx,nx);
+//     }
+
+// } 
+
 template <typename Iterate, typename Problem>
 void eval_grad_ψ_k_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec y){
+
+    // eval_grad_f_plus_prod_grad_g_y(k, problem, It.grad_ψ, It.Jfxu, It.qr, It.Z);
 
     auto nx = problem.get_nx();
     auto nu = problem.get_nu();
@@ -85,7 +112,6 @@ template <typename Iterate, typename Problem>
 real_t eval_ψ_k_fun (int k, Iterate &It, Problem &problem, crvec μ, Box &F){
     
     auto nx = problem.get_nx();
-    auto nxu = problem.get_nx() + problem.get_nu(); 
     auto N = problem.get_N() + 1;
 
     Eigen::Index k_ = k;
@@ -272,3 +298,4 @@ void fd_grad_ψ_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec y, Bo
         It.grad_ψ(i) = (ψxu_ - It.ψxu)/h;
     }
 }
+

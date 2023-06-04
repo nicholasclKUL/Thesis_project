@@ -165,21 +165,18 @@ struct HangingChain{
         else{
           x_init(i) = (k+1)*L;
           x_init(i+1) = 0;
-          //x_init(i+2) = a*std::cosh((x_init(i)-b)/a) - a*std::cosh(-b/a);
-          x_init(i+2) = 0;
+          x_init(i+2) = a*std::cosh((x_init(i)-b)/a) - a*std::cosh(-b/a);
         }
         ++k;
         if (k*3 == real_t(p_nh)){
           k = 0;
         }
       }
-      length_t p_index = (N_balls-1)*dim-dim;
-      std::cout<<"The starting point of the free-end is: "<<x_init.segment(p_index,3).transpose()<<std::endl;
     }
   }
 
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const { 
-    // alpaqa::ScopedMallocAllower ma;
+    alpaqa::ScopedMallocAllower ma;
 
     auto &&p = x.segment(0, (N_balls-1)*dim);
     auto &&v = x.segment(p.size(),nx-p.size());
@@ -216,7 +213,7 @@ struct HangingChain{
   } // *discretized using Explicit Euler
 
   void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
-    // alpaqa::ScopedMallocAllower ma;
+    alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
     dynamics(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, dim, N_balls, 
               nx, Ts, D, L, m, g, xo, yo, zo);
@@ -225,7 +222,7 @@ struct HangingChain{
 
   void eval_grad_f_prod(index_t timestep, crvec x, crvec u, crvec p,
                         rvec grad_fxu_p) const {
-    // alpaqa::ScopedMallocAllower ma;
+    alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
     dynamics(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, dim, N_balls,
               nx, Ts, D, L, m, g, xo, yo, zo);
@@ -233,7 +230,7 @@ struct HangingChain{
   }
 
   void eval_h([[maybe_unused]] index_t timestep, crvec x, crvec u, rvec h) const {
-      // alpaqa::ScopedMallocAllower ma;
+      alpaqa::ScopedMallocAllower ma;
       h.topRows(nx)    = x;
       h.bottomRows(nu) = u;
       h((N_balls-1)*dim-3) = x((N_balls-1)*dim-3) - x_ref;
@@ -247,22 +244,22 @@ struct HangingChain{
       h((N_balls-1)*dim-1) = x((N_balls-1)*dim-1) - z_ref; 
   }
   [[nodiscard]] real_t eval_l([[maybe_unused]] index_t timestep, crvec h) const {
-      // alpaqa::ScopedMallocAllower ma;
+      alpaqa::ScopedMallocAllower ma;
       return h.transpose() * QR.asDiagonal() * h;
   }
   [[nodiscard]] real_t eval_l_N(crvec h) const {
-      // alpaqa::ScopedMallocAllower ma;
+      alpaqa::ScopedMallocAllower ma;
       return  h.transpose() * Q.asDiagonal() * h;
   }
   void eval_qr([[maybe_unused]] index_t timestep, 
                 [[maybe_unused]] crvec xu, crvec h, rvec qr) const {
-      // alpaqa::ScopedMallocAllower ma;
+      alpaqa::ScopedMallocAllower ma;
       auto Jh_xu    = mat::Identity(nx + nu, nx + nu);
       auto &&grad_l = QR.asDiagonal() * h;
       qr            = Jh_xu.transpose() * grad_l;
   }
   void eval_q_N([[maybe_unused]] crvec x, crvec h, rvec q) const {
-      // alpaqa::ScopedMallocAllower ma;
+      alpaqa::ScopedMallocAllower ma;
       auto Jh_x     = mat::Identity(nx, nx);
       auto &&grad_l = 2 * Q.asDiagonal() * h;
       q             = Jh_x.transpose() * grad_l;
@@ -274,7 +271,7 @@ struct HangingChain{
   }
   void eval_add_Q_N([[maybe_unused]] crvec x,
                     [[maybe_unused]] crvec h, rmat Q) const {
-      // alpaqa::ScopedMallocAllower ma;
+      alpaqa::ScopedMallocAllower ma;
       Q += 10 * mat::Identity(nx, nx);
   }
   void eval_add_R_masked([[maybe_unused]] index_t timestep,
@@ -282,7 +279,7 @@ struct HangingChain{
                           [[maybe_unused]] crvec h, crindexvec mask,
                           rmat R, 
                           [[maybe_unused]] rvec work) const {
-      // alpaqa::ScopedMallocAllower ma;
+      alpaqa::ScopedMallocAllower ma;
       const auto n = mask.size();
       R.noalias() += mat::Identity(n, n);
   }
@@ -301,7 +298,7 @@ struct HangingChain{
                               rvec out, 
                               [[maybe_unused]] rvec work) const {
       // The following has no effect because R is diagonal, and J ∩ K = ∅
-      // alpaqa::ScopedMallocAllower ma;
+      alpaqa::ScopedMallocAllower ma;
       auto R = mat::Identity(nu, nu);
       out.noalias() += R(mask_J, mask_K) * v(mask_K);
   }

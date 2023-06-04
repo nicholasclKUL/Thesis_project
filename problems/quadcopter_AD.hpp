@@ -37,24 +37,8 @@ void dynamics(index_t &k, X &xu, J &fxu,
     fxu(11) = xu(11) + Ts * (cos(xu(0))*cos(xu(2))) * xu(15) / (M-g);
 }
 
-// Output Mapping
-template <typename X, typename H>
-void h_ad(index_t &k, X &xu, H &h){
-  for (size_t i = 0; i < xu.size(); ++i){
-    h(i) = xu(i);
-  }
-}
-
-// Cost function
-template <typename H, typename L, typename QR>
-void l_ad(index_t &k, H &h, L &l, QR &qr){
-  for (size_t i = 0; i < h.size(); ++i){
-    l = h*qr*h;
-  }
-}
-
 // Horizon length, number of states and input for compile time allocation of AD views
-const int p_N = 180, p_nx = 12, p_nu = 4, p_nh = 16; 
+const int p_N = 30, p_nx = 12, p_nu = 4, p_nh = 16; 
 
 using AD_obj = AD<p_nx+p_nu,p_nx,p_nh>;
 
@@ -66,8 +50,7 @@ struct QuadcopterAD{
   length_t  T = 3;                      ///< Time horizon (s) 
 
   // OCP parameters:
-  length_t Ns = 60,                    ///< Horizon length / second
-            N = Ns*T,                  ///< Total horizon length
+  length_t  N = p_N,                   ///< Total horizon length
            nu = 4,                     ///< Number of inputs
            nx = 12,                    ///< Number of states  
            nh = nu + nx,               ///< Number of stage outputs
@@ -125,15 +108,18 @@ struct QuadcopterAD{
   void get_D_N(Box &D) const {}
 
   void get_x_init(rvec x_init) const {
-    if (x_init.size() == nu*N){
+    if (x_init.size() <= nu*N){
       x_init.setConstant(0);
+      x_init(0) = -0.25;
+      x_init(1) = 0.51;
+      x_init(2) = 0.32;
     }
     else{
       x_init.setConstant(0.);
       for (size_t i = 0; i < N-1; ++i){
         x_init(0+(i*(nx+nu))) = -0.25; //x
-        x_init(1+(i*(nx+nu))) = 0.51; //y
-        x_init(2+(i*(nx+nu))) = 0.32; //z
+        x_init(1+(i*(nx+nu))) = 0.51;  //y
+        x_init(2+(i*(nx+nu))) = 0.32;  //z
       }
     }
   }
@@ -179,8 +165,8 @@ struct QuadcopterAD{
 
     dynamics(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, 
               Ts, a1, a2, a3, b1, b2, M, g);
-    
-    assign_values<p_nx+p_nu,p_nx,p_nh> (grad_fxu_p, p, ad_obj[timestep]);
+
+    assign_values<p_nx+p_nu,p_nx,p_nh>(grad_fxu_p, p, ad_obj[timestep]);
 
   }
 

@@ -7,6 +7,7 @@
 
 #include <thesis/para-panoc.hpp>
 #include <thesis/printing.hpp>
+#include <thesis/ocp-kkt-error.hpp>
 #include <nonlinear_example1.hpp>
 #include <linear_dynamics.hpp>
 //#include <quadcopter_AD.hpp>
@@ -15,6 +16,13 @@
 
 #include <iomanip>
 #include <iostream>
+
+USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
+
+void progress_callback(const alpaqa::PANOCOCPProgressInfo<config_t>& info){
+   auto states = info.x();
+   std::cout<<"["<<states.transpose()<<"]"<<'\n\n'<<std::endl;
+}
 
 int main() {
 
@@ -25,62 +33,68 @@ int main() {
     auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<HangingChain>();
 
     // Problem dimensions
-    //SS
+    
+    //SS:
     const auto n = problem.get_N() * problem.get_nu(),
                m = problem.get_N() * problem.get_nc() + problem.get_nc_N();
-    //MS-Parallel
+    
+    //MS-Parallel:
     const auto n_ms = (problem.get_nx()+problem.get_nu())*(problem.get_N())+problem.get_nx(),
                m_ms = problem.get_nx()*(problem.get_N()),
                nt = problem.get_N()+1;
 
     // Initial guess and other solver inputs
-    //SS
-    vec x = vec::Zero(n); // Inputs
-    vec y = vec::Zero(m); // Lagrange multipliers
-    vec μ = vec::Ones(m); // Penalty factors
-    vec e(m);             // Constraint violation
-    problem.get_x_init(x);
-    std::cout<<x.transpose()<<std::endl;
+    
+    //SS:
+    vec u = vec::Zero(n), // Inputs
+        y = vec::Zero(m), // Lagrange multipliers
+        μ = vec::Ones(m), // Penalty factors
+        e(m);             // Constraint violation
 
-    //MS-Parallel
-    vec xu = vec::Zero(n_ms);   // Inputs
-    vec y_ms = vec::Zero(m_ms); // Lagrange multipliers
-    vec μ_ms = vec::Ones(m_ms); // Penalty factors
-    vec e_ms(m_ms);             // Constraint violation
-    vec g_ms(m_ms);             // Continuity violation
+    //MS-Parallel:
+    vec xu = vec::Zero(n_ms),   // Inputs
+        y_ms = vec::Zero(m_ms), // Lagrange multipliers
+        μ_ms = vec::Ones(m_ms), // Penalty factors
+        e_ms(m_ms),             // Constraint violation
+        g_ms(m_ms);             // Continuity violation
     problem.get_x_init(xu);
 
     // Solver
-    // Inner:
+    
+    //Inner:
     alpaqa::PANOCOCPParams<config_t> params;
     params.stop_crit = alpaqa::PANOCStopCrit::ProjGradNorm2;
-    params.gn_interval = 0;
+    params.gn_interval = 0; //GN disabled
     params.print_interval = 0;
     params.max_iter = 10000;
     params.disable_acceleration = false;
-    // Outer:
+    
+    //Outer:
     alpaqa::ALMParams almparams; 
     almparams.tolerance = 1e-6;
     almparams.max_iter = 1000;
     almparams.print_interval = 0;
 
-    //MS
+    // Solving
+    
+    //MS:
     alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver_ms{almparams,{params}};
     auto stats_ms = almsolver_ms(problem, xu, y_ms, nt);
-    Kokkos::finalize();
     printing::print_stats_outer(stats_ms);
     printing::print_solution(problem, xu);
-
-    //SS
-    params.print_interval = 1;
+    
+    //SS:
+    
     alpaqa::ALMSolver<alpaqa::PANOCOCPSolver<config_t>> almsolver_ss{almparams,{params}};
-    auto stats_ss = almsolver_ss(problem, x, y);
+    almsolver_ss.inner_solver.set_progress_callback(progress_callback);
+    auto stats_ss = almsolver_ss(problem, u, y);
     printing::print_stats_outer(stats_ss);
-    printing::print_solution_ss(problem,x);
+    printing::print_solution_ss(problem, u);
         
     }
 
     Kokkos::finalize();
+
 }
 
     

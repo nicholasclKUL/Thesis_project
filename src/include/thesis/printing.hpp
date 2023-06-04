@@ -22,10 +22,10 @@ using Stats_outer_ss    = alpaqa::ALMSolver<alpaqa::PANOCOCPSolver<alpaqa::Defau
 template <typename P>
 void print_solution (P &problem, crvec xu) {
     for (length_t i = 0; i < problem.get_N()+1; ++i){
-        std::cout<<"--Stage "<<i<<":"<<'\n';
+        std::cout<<'\n'<<"--Stage "<<i<<":"<<'\n';
         if (i < problem.get_N()){
             std::cout<<"x = ["<<xu.segment(i*(problem.get_nx()+problem.get_nu()),problem.get_nx()).transpose()<<"]"<<'\n'
-                     <<"u = ["<<xu.segment(i*(problem.get_nx()+problem.get_nu())+problem.get_nx(),problem.get_nu()).transpose()<<"]"<<'\n';
+                     <<"u = ["<<xu.segment(i*(problem.get_nx()+problem.get_nu())+problem.get_nx(),problem.get_nu()).transpose()<<"]"<<std::endl;
         }
         else{
             std::cout<<"x = ["<<xu.segment(i*(problem.get_nx()+problem.get_nu()),problem.get_nx()).transpose()<<"]"<<std::endl;

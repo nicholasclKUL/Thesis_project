@@ -16,7 +16,7 @@ struct AD{
   
   FadType2 Qr;
 
-  Kokkos::View<FadType1*> xu_fad,   ///< view of states and inputs
+  Kokkos::View<FadType1*> xu_fad,    ///< view of states and inputs
                           fxu_fad,   ///< view of dynamics
                           h_fad;     ///< view of output mapping
   Kokkos::View<FadType2*> l_fad;     ///< view of stages cost function
@@ -75,6 +75,7 @@ void assign_values (rmat Jfxu, const AD<nxu,nx,nh> &ad){
 // Assign grad-vector product to input container
 template <const int nxu, const int nx, const int nh>
 void assign_values (rvec grad_fxu_p, crvec p, const AD<nxu,nx,nh> &ad){
+  grad_fxu_p.setConstant(0.);
   for (size_t i = 0; i < nxu; ++i){
     for (size_t j = 0; j < nx; ++j){
       grad_fxu_p(i) += ad.fxu_fad(j).fastAccessDx(i)*p(j);

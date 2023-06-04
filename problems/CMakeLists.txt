@@ -6,9 +6,9 @@ add_library(problems
 "quadcopter.hpp"
 
 # benchmark problems using AD
-"quadcopter_AD.hpp"
-"hanging_chain.hpp"
-"small_hanging_chain.hpp"
+#"quadcopter_AD.hpp"
+#"hanging_chain.hpp"
+#"small_hanging_chain.hpp"
 )
 
 target_link_libraries(problems PRIVATE Kokkos::kokkos)
