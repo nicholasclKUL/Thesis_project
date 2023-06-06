@@ -38,7 +38,7 @@ void dynamics(index_t &k, X &xu, J &fxu,
 }
 
 // Horizon length, number of states and input for compile time allocation of AD views
-const int p_N = 30, p_nx = 12, p_nu = 4, p_nh = 16; 
+const int p_N = 15, p_nx = 12, p_nu = 4, p_nh = 16; 
 
 using AD_obj = AD<p_nx+p_nu,p_nx,p_nh>;
 
@@ -47,7 +47,7 @@ struct QuadcopterAD{
 
   using Box = alpaqa::Box<config_t>;
 
-  length_t  T = 3;                      ///< Time horizon (s) 
+  length_t  T = 3;                     ///< Time horizon (s) 
 
   // OCP parameters:
   length_t  N = p_N,                   ///< Total horizon length
@@ -60,7 +60,7 @@ struct QuadcopterAD{
             n = ((nx + nu) * N) - nu;  ///< Total number of decision variables 
 
   // Dynamics and discretization parameters:
-  real_t Ts = real_t(T)/real_t(N),          ///< Discretization step length
+  real_t Ts = real_t(T)/real_t(N),     ///< Discretization step length
          g  = 9.81,                     
          M  = 0.65,                 
          I  = 0.23,
@@ -112,14 +112,14 @@ struct QuadcopterAD{
       x_init.setConstant(0);
       x_init(0) = -0.25;
       x_init(1) = 0.51;
-      x_init(2) = 0.32;
+      x_init(2) = -0.32;
     }
     else{
       x_init.setConstant(0.);
       for (size_t i = 0; i < N-1; ++i){
         x_init(0+(i*(nx+nu))) = -0.25; //x
         x_init(1+(i*(nx+nu))) = 0.51;  //y
-        x_init(2+(i*(nx+nu))) = 0.32;  //z
+        x_init(2+(i*(nx+nu))) = -0.32;  //z
       }
     }
   }

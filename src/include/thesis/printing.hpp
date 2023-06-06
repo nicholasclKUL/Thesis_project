@@ -6,6 +6,7 @@
 
 #include <thesis/para-alm.hpp>
 #include <thesis/para-panoc.hpp>
+#include <thesis/ocp-kkt-error.hpp>
 
 #include <iomanip>
 #include <iostream>
@@ -24,21 +25,21 @@ void print_solution (P &problem, crvec xu) {
     for (length_t i = 0; i < problem.get_N()+1; ++i){
         std::cout<<'\n'<<"--Stage "<<i<<":"<<'\n';
         if (i < problem.get_N()){
-            std::cout<<"x = ["<<xu.segment(i*(problem.get_nx()+problem.get_nu()),problem.get_nx()).transpose()<<"]"<<'\n'
-                     <<"u = ["<<xu.segment(i*(problem.get_nx()+problem.get_nu())+problem.get_nx(),problem.get_nu()).transpose()<<"]"<<std::endl;
+            std::cout<<"x = ["<<std::scientific<<xu.segment(i*(problem.get_nx()+problem.get_nu()),problem.get_nx()).transpose()<<"]"<<'\n'
+                     <<"u = ["<<std::scientific<<xu.segment(i*(problem.get_nx()+problem.get_nu())+problem.get_nx(),problem.get_nu()).transpose()<<"]"<<std::endl;
         }
         else{
-            std::cout<<"x = ["<<xu.segment(i*(problem.get_nx()+problem.get_nu()),problem.get_nx()).transpose()<<"]"<<std::endl;
+            std::cout<<"x = ["<<std::scientific<<xu.segment(i*(problem.get_nx()+problem.get_nu()),problem.get_nx()).transpose()<<"]"<<std::endl;
         }      
     }
 }
 
 template <typename P>
 void print_solution_ss (P &problem, crvec u) {
-        for (length_t i = 0; i < problem.get_N()+1; ++i){
+        for (length_t i = 0; i < problem.get_N(); ++i){
         std::cout<<"--Stage "<<i<<":"<<'\n';
         if (i < problem.get_N()){
-                     std::cout<<"u = ["<<u.segment(i*(problem.get_nu()),problem.get_nu()).transpose()<<"]"<<'\n';
+                     std::cout<<std::scientific<<"u = ["<<u.segment(i*(problem.get_nu()),problem.get_nu()).transpose()<<"]"<<'\n';
         }      
     }
 }
@@ -155,6 +156,12 @@ void output_file (P &problem, std::string &problem_name, crvec xu, index_t Ts){
     myfile<<std::endl;   
     // close file
     myfile.close();
+}
+
+void kkt_error(alpaqa::KKTError<config_t> &kkt){
+    std::cout<<'\n'<<std::right<<std::setw(35)<<"Lagrangian Stationarity, ∇ℒ(x,y) = "<<kkt.stationarity<<'\n'
+                   <<std::right<<std::setw(35)<<"Primal feasibility, g(x) = "<<kkt.constr_violation<<'\n'
+                   <<std::right<<std::setw(35)<<"Complementary slackness, y.g(x) = "<<kkt.complementarity<<'\n'<<std::endl;
 }
 
 }

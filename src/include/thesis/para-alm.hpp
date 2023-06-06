@@ -52,9 +52,9 @@ class ParaALMSolver {
     ParaALMSolver(Params params, const InnerSolver &inner_solver)
         : params(params), inner_solver(inner_solver) {}
 
-    Stats operator()(const Problem &problem, rvec x, rvec y, index_t nthrds);
+    Stats operator()(const Problem &problem, rvec x, rvec y, real_t ϵ, index_t nthrds);
     template <class P>
-    Stats operator()(const P &problem, rvec x, rvec y, index_t nthrds) {
+    Stats operator()(const P &problem, rvec x, rvec y, real_t ϵ, index_t nthrds) {
         return operator()(Problem::template make<P>(problem), x, y, nthrds);
     }
 
@@ -84,7 +84,7 @@ class ParaALMSolver {
 
 template <class InnerSolverT>
 typename ParaALMSolver<InnerSolverT>::Stats
-ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_t nt) {
+ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, real_t ϵ, index_t nt) {
     using std::chrono::duration_cast;
     using std::chrono::nanoseconds;
     auto start_time = std::chrono::steady_clock::now();
@@ -180,7 +180,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
         // Lagrange multipliers y.
         auto ps = inner_solver(p, opts, x, y, Σ, error_2, g, nt);
         // Update lagrange multipliers
-        //y += Σ.asDiagonal().inverse() * error_2;
+        y += Σ.asDiagonal() * g;
         // Check if the inner solver converged
         bool inner_converged = ps.status == SolverStatus::Converged;
         // Accumulate the inner solver statistics
@@ -250,7 +250,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, index_
             // Check the termination criteria
             real_t continuity = (g).norm()/real_t(g.size()); // continuity of PDEs between stages
             bool alm_converged =
-                (ps.ε <= params.tolerance && inner_converged && norm_e_1 <= params.dual_tolerance) || (continuity <= params.tolerance);
+                (ps.ε <= params.tolerance && inner_converged && norm_e_1 <= params.dual_tolerance) && (continuity <= params.tolerance*ϵ);
             bool exit = alm_converged || out_of_iter || out_of_time;
             if (exit) {
                 s.ε                = ps.ε;

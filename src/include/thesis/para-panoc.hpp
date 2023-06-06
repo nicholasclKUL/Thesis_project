@@ -466,6 +466,7 @@ auto ParaPANOCSolver<Conf>::operator()(
                 stop_status == SolverStatus::Interrupted ||
                 opts.always_overwrite_results) {
                     err_z = curr->g - curr->Π_D;
+                    g = curr->g;
             }
             s.iterations   = k;
             s.ε            = εₖ;
