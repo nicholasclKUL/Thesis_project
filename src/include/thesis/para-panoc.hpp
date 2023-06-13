@@ -7,9 +7,10 @@
 #include <alpaqa/implementation/inner/panoc.tpp>
 #include <alpaqa/implementation/inner/panoc-ocp.tpp>
 #include <alpaqa/implementation/inner/panoc-helpers.tpp>
-#include <thesis/para-panoc-helpers.hpp>
 
 #include <Kokkos_Core.hpp>
+
+#include <thesis/para-panoc-helpers.hpp>
 
 #include <cassert>
 #include <cmath>
@@ -111,7 +112,7 @@ auto ParaPANOCSolver<Conf>::operator()(
     const auto nc_N = problem.get_nc_N();   // box constraints * horizon
     const auto nxu  = nx + nu;              // number of decision variables per stage
     const auto n    = (nxu*(N-1)) + nx;     // total number of decision variables
-    const auto m    = nx*(N-1);             // total number of dynamic constraints
+    const auto m    = nx*(N);               // total number of dynamic constraints
 
     // Allocate storage --------------------------------------------------------
 
@@ -161,12 +162,12 @@ auto ParaPANOCSolver<Conf>::operator()(
         // @return φγ
         real_t fbe() const { return ψxu + pᵀp / (2 * γ) + grad_ψᵀp; }
 
-        Iterate(length_t n, length_t m, length_t nxu, length_t N) :
-            xu(n), xû(n), grad_ψ(n), fxu(m), fxû(m), hxu(n), hxû(n), 
+        Iterate(length_t n, length_t m, length_t nx, length_t nu, length_t N) :
+            xu(n), xû(n), grad_ψ(n), fxu(m-nx), fxû(m-nx), hxu(n), hxû(n), 
             qr(n), g(m), gz(m), gz_hat(m), Π_D(m), Π_D_hat(m), Z(m), p(n), 
-            Jfxu(m, nxu), GN(n,n), lxu(N), lxû(N) {}
+            Jfxu(m-nx, nx+nu), GN(n,n), lxu(N), lxû(N) {}
 
-    } iterates[2]{{n, m, nxu, N}, {n, m, nxu, N}}; 
+    } iterates[2]{{n, m, nx, nu, N}, {n, m, nx, nu, N}}; 
 
     Iterate *curr = &iterates[0];
     Iterate *next = &iterates[1];
@@ -189,13 +190,16 @@ auto ParaPANOCSolver<Conf>::operator()(
     auto eval_prox = [&](int k, Iterate &It) {
         eval_prox_fun(k, It, problem, μ, y, D_N, D, U);
     };
+    auto eval_prox_stop_crit = [&problem, &D_N, &D, &U](int k, crvec grad_ψ, crvec xu, rvec work_xu, rvec work_p) {
+        eval_prox_stop_crit_fun(k, problem, grad_ψ, xu, work_xu, work_p, D_N, D, U);
+    };
     auto eval_GN_accelerator = [&](int k, Iterate &It, crvec μ){
         eval_GN_accelerator_fun(k, It, problem, μ);
     };
 
     //finite difference gradient approximation
     auto fd_grad_ψ = [&](int k, Iterate &It, crvec μ, crvec y) {
-        fd_grad_ψ_fun(k, It, problem, μ, y, F);       
+        fd_grad_ψ_fun(k, It, problem, μ, y, F, 0.0001);       
     };
 
     //vector products for stopping criteria
@@ -204,16 +208,32 @@ auto ParaPANOCSolver<Conf>::operator()(
         It.grad_ψᵀp = It.grad_ψ.dot(It.p);
     };
 
-    auto calc_error_stop_crit = [this](
+    auto calc_error_stop_crit = [this, &eval_prox_stop_crit](
                                     real_t γ, crvec xuₖ, crvec grad_ψₖ,
                                     crvec pₖ, real_t pₖᵀpₖ, rvec work_xu,
-                                    rvec work_p) {
+                                    rvec work_p, index_t nthrds) {
+        
         switch (params.stop_crit) {
             case PANOCStopCrit::ProjGradNorm: {
                 return vec_util::norm_inf(pₖ);
             }
             case PANOCStopCrit::ProjGradNorm2: {
                 return std::sqrt(pₖᵀpₖ);
+            }
+            case PANOCStopCrit::ProjGradUnitNorm: {
+                Kokkos::parallel_for("xû = T(xu₀)", nthrds, [&](const int i){
+                    eval_prox_stop_crit(i, grad_ψₖ, xuₖ, work_xu, work_p);
+                });
+                Kokkos::fence();
+                return vec_util::norm_inf(xuₖ-work_xu);
+            }
+            case PANOCStopCrit::ProjGradUnitNorm2: {
+                Kokkos::parallel_for("xû = T(xu₀)", nthrds, [&](const int i){
+                    eval_prox_stop_crit(i, grad_ψₖ, xuₖ, work_xu, work_p);
+                });
+                Kokkos::fence();
+                work_xu -= xuₖ;
+                return work_xu.squaredNorm();
             }
             case PANOCStopCrit::FPRNorm: {
                 return vec_util::norm_inf(pₖ) / γ;
@@ -440,7 +460,7 @@ auto ParaPANOCSolver<Conf>::operator()(
         // Check stop condition ------------------------------------------------
 
         real_t εₖ = calc_error_stop_crit(curr->γ, curr->xu, curr->grad_ψ,
-                                         curr->p, curr->pᵀp, next->xû, next->p);
+                                         curr->p, curr->pᵀp, next->xû, next->p, nthrds);
 
         // Print progress ------------------------------------------------------
         bool do_print =
@@ -617,7 +637,7 @@ auto ParaPANOCSolver<Conf>::operator()(
 
         // Check if we made any progress
         if (no_progress > 0 || k % params.max_no_progress == 0)
-            no_progress = curr->xu == next->xu ? no_progress + 1 : 0;
+            no_progress = alpaqa::vec_util::norm_inf(curr->xu - next->xu) <= 1e-12 ? no_progress + 1 : 0;
 
         // Check whether we used gn step in this PANOC step
         (enable_gn == true) ? did_gn = true : did_gn = false;

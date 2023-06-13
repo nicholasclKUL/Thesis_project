@@ -55,6 +55,14 @@ void assign_values_xu (crvec xu, const AD<nxu,nx,nh> &ad){
   }
 }
 
+template <const int nxu, const int nx, const int nh>
+void assign_values_xu (AD<nxu,nx,nh> &ad1, const AD<nxu,nx,nh> &ad2){
+  for (size_t i = 0; i < ad1.size(); ++i){
+    ad1.xu_fad(i).val() = ad2.xu_fad(i).val();
+    ad1.xu_fad(i).diff(i, ad1.size()); //generate vector of duals
+  }
+}
+
 // template <const int nxu, const int nx, const int nh>
 // void assign_values_Qr (crvec QR, const AD<nxu,nx,nh> &ad){
 //   for (size_t i = 0; i < QR.size(); ++i){

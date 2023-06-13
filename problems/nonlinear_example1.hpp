@@ -12,9 +12,9 @@ struct NonlinearOCP1 {
     USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
     using Box = alpaqa::Box<config_t>;
 
-    length_t N = 200,      ///< Horizon length
+    length_t N = 50,      ///< Horizon length
         nu     = 1,       ///< Number of inputs
-        nx     = 100,       ///< Number of states
+        nx     = 50,       ///< Number of states
         nh     = nu + nx, ///< Number of stage outputs
         nh_N   = nx,      ///< Number of terminal outputs
         nc     = 0,       ///< Number of stage constraints

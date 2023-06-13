@@ -9,7 +9,7 @@
 #include <thesis/printing.hpp>
 #include <nonlinear_example1.hpp>
 #include <linear_dynamics.hpp>
-// #include <quadcopter_AD.hpp>
+//#include <quadcopter_AD.hpp>
 #include <hanging_chain.hpp>
 #include <quadcopter.hpp>
 #include <thesis/ocp-kkt-error.hpp>
@@ -20,7 +20,7 @@
 USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
 void progress_callback(const alpaqa::PANOCOCPProgressInfo<config_t>& info){
-   auto states = info.x();
+   auto x = info.x();
 }
 
 int main() {
@@ -39,7 +39,7 @@ int main() {
     
     //MS-Parallel:
     const auto n_ms = (problem.get_nx()+problem.get_nu())*(problem.get_N())+problem.get_nx(),
-               m_ms = problem.get_nx()*(problem.get_N()),
+               m_ms = problem.get_nx()*(problem.get_N()+1),
                nt = problem.get_N()+1;
 
     // Initial guess and other solver inputs
@@ -63,60 +63,67 @@ int main() {
     
     //Inner:
     alpaqa::PANOCOCPParams<config_t> params;
-    params.stop_crit = alpaqa::PANOCStopCrit::ProjGradNorm2;
+    params.stop_crit = alpaqa::PANOCStopCrit::FPRNorm;
     params.gn_interval = 0; //GN disabled
     params.print_interval = 0;
-    params.max_iter = 10000;
+    params.max_iter = 100;
     params.disable_acceleration = false;
     
     //Outer:
     alpaqa::ALMParams almparams; 
     almparams.tolerance = 1e-6;
-    almparams.max_iter = 10000;
-    almparams.print_interval = 0;
+    almparams.max_iter = 1000;
+    almparams.print_interval = 1;
+    almparams.max_time = std::chrono::minutes(15);
 
     // Solving
     
-    //MS:
-    alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver_ms{almparams,{params}};
-    auto stats_ms = almsolver_ms(problem, xu, y_ms, ϵ, nt);
-    printing::print_stats_outer(stats_ms);
-    printing::print_solution(problem, xu);
+    // //MS:
+    // alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver_ms{almparams,{params}};
+    // auto stats_ms = almsolver_ms(problem, xu, y_ms, ϵ, nt);
+    // printing::print_stats_outer(stats_ms);
+    // alpaqa::KKTiterate<config_t> it(n_ms,m_ms,problem.get_nx(),problem.get_nu()+problem.get_nx());
+    // auto kkt = alpaqa::compute_kkt_error(problem, it, xu, y_ms, nt);
+    // printing::kkt_error(kkt);
+    // printing::print_solution(problem, xu);
 
     //SS:
+    params.max_iter = 1000;
+    params.gn_interval = 0;
+    params.print_interval = 1;
     alpaqa::ALMSolver<alpaqa::PANOCOCPSolver<config_t>> almsolver_ss{almparams,{params}};
-    almsolver_ss.inner_solver.set_progress_callback(progress_callback);
+    // almsolver_ss.inner_solver.set_progress_callback(progress_callback);
     auto stats_ss = almsolver_ss(problem, u, y);
     printing::print_stats_outer(stats_ss);
     printing::print_solution_ss(problem, u);
 
-    // Check Optimality Conditions
-
-    //MS:
-    alpaqa::KKTiterate<config_t> it(n_ms,m_ms,problem.get_nu()+problem.get_nx());
-    auto kkt = alpaqa::compute_kkt_error(problem, it, xu, y_ms, nt);
-    printing::kkt_error(kkt);
-
-    // //simulate states for ss control action:
-    // vec x(problem.get_nx()), fxu(problem.get_nx()); 
-    // problem.get_x_init(x);
-    // for (size_t i = 0; i < problem.get_N(); ++i){
-    //     problem.eval_f(i, x, u.segment(i*problem.get_nu(),problem.get_nu()),fxu);
-    //     x = fxu;
-    //     std::cout<<std::scientific<<"["<<fxu.transpose()<<"]"<<std::endl;
-    // }
+    //simulate states for ss control action:
+    vec x(problem.get_nx()), fxu(problem.get_nx()),
+        x_ss(problem.get_nx()*problem.get_N()); 
+    problem.get_x_init(x);
+    std::cout<<'\n'<<std::endl;
+    for (size_t i = 0; i < problem.get_N(); ++i){
+        problem.eval_f(i, x, u.segment(i*problem.get_nu(),problem.get_nu()),fxu);
+        x_ss.segment(i*problem.get_nx(),problem.get_nx()) = x;
+        x = fxu;
+        std::cout<<std::scientific<<"["<<fxu.transpose()<<"]"<<std::endl;
+    }
     
+    HangingChain hg;
+    auto kkt_ss = alpaqa::compute_kkt_error(problem, u, hg.Q, hg.R);
+    printing::kkt_error(kkt_ss);
 
     // std::cout<<alpaqa::vec_util::norm_inf(y_ms)<<", "<<alpaqa::vec_util::norm_inf(it.qr)<<", "
     //         <<it.Jfxu.lpNorm<Eigen::Infinity>()<<'\n'<<std::endl;
 
-    // std::cout<<"it.hxu"<<std::setw(16)<<"it.qr"<<std::setw(16)<<"it.grad_L"<<'\n';
+    // std::cout<<"it.hxu"<<std::setw(16)<<"it.qr"<<std::setw(16)<<"it.grad_L"<<std::setw(16)<<"it.g"<<'\n';
     // index_t k = 0;
     // for (size_t i = 0; i < problem.get_N(); ++i){
     //     for (size_t j = 0; j < problem.get_nx()+problem.get_nu(); j++){
     //         std::cout<<it.hxu(i*(problem.get_nx()+problem.get_nu())+j)<<std::setw(16)
     //                  <<it.qr(i*(problem.get_nx()+problem.get_nu())+j)<<std::setw(16)
-    //                  <<it.grad_L(i*(problem.get_nx()+problem.get_nu())+j)<<'\n';
+    //                  <<it.grad_L(i*(problem.get_nx()+problem.get_nu())+j)<<std::setw(16)
+    //                  <<it.Π_xu(i*(problem.get_nx()+problem.get_nu())+j)-xu(i*(problem.get_nx()+problem.get_nu())+j)<<'\n';
     //     }
     //     std::cout<<'\n'<<std::endl;
     // }
