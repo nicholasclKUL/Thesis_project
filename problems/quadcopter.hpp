@@ -15,11 +15,10 @@ struct Quadcopter{
 
   using Box = alpaqa::Box<config_t>;
 
-  length_t  T = 3;                      ///< Time horizon (s) 
+  length_t  T = 2;                      ///< Time horizon (s) 
 
   // OCP parameters:
-  length_t Ns = 10,                    ///< Horizon length / second
-            N = Ns*T,                  ///< Total horizon length
+  length_t N = 60,                     ///< Total horizon length
            nu = 4,                     ///< Number of inputs
            nx = 12,                    ///< Number of states  
            nh = nu + nx,               ///< Number of stage outputs
@@ -256,12 +255,12 @@ struct Quadcopter{
                     [[maybe_unused]] crvec xu, 
                     [[maybe_unused]] crvec h, rmat Q) const {
         alpaqa::ScopedMallocAllower ma;
-        Q += mat::Identity(nx, nx);   
+        Q += Q.asDiagonal();   
     }
     void eval_add_Q_N([[maybe_unused]] crvec x,
                       [[maybe_unused]] crvec h, rmat Q) const {
         alpaqa::ScopedMallocAllower ma;
-        Q += 10 * mat::Identity(nx, nx);
+        Q += 10 * Q.asDiagonal();
     }
     void eval_add_R_masked([[maybe_unused]] index_t timestep,
                            [[maybe_unused]] crvec xu, 
@@ -270,7 +269,7 @@ struct Quadcopter{
                            [[maybe_unused]] rvec work) const {
         alpaqa::ScopedMallocAllower ma;
         const auto n = mask.size();
-        R.noalias() += mat::Identity(n, n);
+        R.noalias() += 0.005 * mat::Identity(n, n);
     }
     void eval_add_S_masked([[maybe_unused]] index_t timestep, 
                            [[maybe_unused]] crvec xu, 

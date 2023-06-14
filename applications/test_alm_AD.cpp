@@ -9,8 +9,8 @@
 #include <thesis/printing.hpp>
 #include <nonlinear_example1.hpp>
 #include <linear_dynamics.hpp>
-//#include <quadcopter_AD.hpp>
-#include <hanging_chain.hpp>
+#include <quadcopter_AD.hpp>
+// #include <hanging_chain.hpp>
 #include <quadcopter.hpp>
 #include <thesis/ocp-kkt-error.hpp>
 
@@ -29,7 +29,7 @@ int main() {
     
     {
 
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<HangingChain>();
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<Quadcopter>();
 
     // Problem dimensions
     
@@ -63,7 +63,7 @@ int main() {
     
     //Inner:
     alpaqa::PANOCOCPParams<config_t> params;
-    params.stop_crit = alpaqa::PANOCStopCrit::FPRNorm;
+    params.stop_crit = alpaqa::PANOCStopCrit::ProjGradUnitNorm2;
     params.gn_interval = 0; //GN disabled
     params.print_interval = 0;
     params.max_iter = 100;
@@ -109,7 +109,8 @@ int main() {
         std::cout<<std::scientific<<"["<<fxu.transpose()<<"]"<<std::endl;
     }
     
-    HangingChain hg;
+    // HangingChain hg;
+    Quadcopter hg;
     auto kkt_ss = alpaqa::compute_kkt_error(problem, u, hg.Q, hg.R);
     printing::kkt_error(kkt_ss);
 

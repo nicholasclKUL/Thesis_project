@@ -215,8 +215,6 @@ KKTError<Conf> compute_kkt_error (const alpaqa::TypeErasedControlProblem<Conf> &
     }
     grad_L.topRows(nu) = Rk.asDiagonal()*u.topRows(nu) + Jfxu.block(0,nx,nx,nu).transpose()*p;
 
-    std::cout<<grad_L.transpose()<<std::endl;
-
     auto stationarity = alpaqa::vec_util::norm_inf(grad_L);
     return {.stationarity     = stationarity,
             .constr_violation = alpaqa::NaN<Conf>,
