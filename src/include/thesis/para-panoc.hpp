@@ -199,7 +199,7 @@ auto ParaPANOCSolver<Conf>::operator()(
 
     //finite difference gradient approximation
     auto fd_grad_ψ = [&](int k, Iterate &It, crvec μ, crvec y) {
-        fd_grad_ψ_fun(k, It, problem, μ, y, F, 0.0001);       
+        fd_grad_ψ_fun(It, problem, μ, y, F, 0.0001);       
     };
 
     //vector products for stopping criteria
@@ -510,8 +510,7 @@ auto ParaPANOCSolver<Conf>::operator()(
                 eval_GN_accelerator(i, *curr, μ);
             });
             Kokkos::fence();
-            q.segment(0,nx).setZero();
-            q.segment(nx,n-nx) = - curr->GN.block(nx,nx,n-nx,n-nx).inverse()*curr->grad_ψ.segment(nx,n-nx);
+            q = - curr->GN.inverse()*curr->grad_ψ;
             τ_init = 1;
             k_gn = k + params.gn_interval;
         }
@@ -637,7 +636,7 @@ auto ParaPANOCSolver<Conf>::operator()(
 
         // Check if we made any progress
         if (no_progress > 0 || k % params.max_no_progress == 0)
-            no_progress = alpaqa::vec_util::norm_inf(curr->xu - next->xu) <= 1e-12 ? no_progress + 1 : 0;
+            no_progress = alpaqa::vec_util::norm_inf(curr->xu - next->xu) <= 0 ? no_progress + 1 : 0;
 
         // Check whether we used gn step in this PANOC step
         (enable_gn == true) ? did_gn = true : did_gn = false;

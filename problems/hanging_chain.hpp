@@ -15,10 +15,12 @@
 #include <iostream>
 #include <functional>
 #include <vector>
+#include <ctime>
+#include <random>
+#include <chrono>
 
 USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
-// discrete (Fwd Euler) dynamics function which accepts the AD objects as arguments [in/out]
 template <typename X, typename J, typename Params>
 void dynamics(index_t &k, X &xu, J &fxu, const Params &params){    
 
@@ -74,8 +76,6 @@ const int p_N = 30,
           p_nu = 3,
           p_nh = p_nx + p_nu; 
 
-const real_t p_Ts = 0.05;
-
 // Define the AD object to use in the computations
 using AD_obj = AD<p_nx+p_nu,p_nx,p_nh>;
 
@@ -98,9 +98,6 @@ struct HangingChain{
     real_t g          = -9.81;    ///< Gravitational acceleration, [m/s²]
     length_t N_balls  = p_Nb;     ///< Number of balls + fixed and free-end
     length_t dim      = p_dim;    ///< Dimensions
-    real_t x_ref      =(N_balls)*L;      ///< Desired position of x_N
-    real_t y_ref      = 0.0;      ///< Desired position of y_N
-    real_t z_ref      = 0.0;      ///< Desired position of z_N
     real_t xo         = 0.0;      ///< Fixed-end position in x
     real_t yo         = 0.0;      ///< Fixed-end position in y
     real_t zo         = 0.0;      ///< Fixed-end position in z
@@ -118,10 +115,14 @@ struct HangingChain{
               n = ((nx+nu)*N)    ///< Total number of decision variables
                   - nu;  
 
-    real_t    Ts = p_Ts;          ///< Sampling time
+    real_t    T = 1.,
+              Ts = T/real_t(N);          ///< Sampling time
+
   };
 
   Params params;
+
+unsigned long int n_seed = 1;
 
   AD_obj ad_obj[p_N];           ///< AD objects for each stage (to avoid data race)
 
@@ -132,11 +133,8 @@ struct HangingChain{
          QR;                    ///< Diagonals Q and R merged
 
   HangingChain() : p_ref(params.dim), po(params.dim), Q(params.nx), R(params.nu), QR(params.nx+params.nu) {
-    
-    p_ref << params.x_ref, params.y_ref, params.z_ref;
-    po << params.xo, params.yo, params.zo;
 
-    std::cout<<"The desired position is: "<<p_ref.transpose()<<std::endl;
+    po << params.xo, params.yo, params.zo;
     
     Q.segment(0,(params.N_balls-1)*params.dim).setConstant(0); 
     Q((params.N_balls-1)*params.dim-1) = params.β; 
@@ -159,8 +157,8 @@ struct HangingChain{
   [[nodiscard]] length_t get_nc_N() const { return params.nc_N; }
 
   void get_U(Box &U) const {
-    U.lowerbound.setConstant(-alpaqa::inf<config_t>);
-    U.upperbound.setConstant(+alpaqa::inf<config_t>);
+    U.lowerbound.setConstant(-1);
+    U.upperbound.setConstant(+1);
   }
 
   void get_D(Box &D) const {    
@@ -198,12 +196,14 @@ struct HangingChain{
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const { 
     alpaqa::ScopedMallocAllower ma;
     vec xu(params.nx+params.nu); xu << x, u;
-    rk4(timestep, xu, fxu, params);
+    fe(timestep, xu, fxu, params);
+    // rk4(timestep, xu, fxu, params);
   } 
   void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
+    fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx>(Jfxu, ad_obj[timestep]);
   }
 
@@ -211,7 +211,8 @@ struct HangingChain{
                         rvec grad_fxu_p) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
+    fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx> (grad_fxu_p, p, ad_obj[timestep]);
   }
 
@@ -219,15 +220,23 @@ struct HangingChain{
       alpaqa::ScopedMallocAllower ma;
       h.topRows(params.nx)    = x;
       h.bottomRows(params.nu) = u;
-      h((params.N_balls-1)*params.dim-3) = x((params.N_balls-1)*params.dim-3) - params.x_ref;
-      h((params.N_balls-1)*params.dim-2) = x((params.N_balls-1)*params.dim-2) - params.y_ref;
-      h((params.N_balls-1)*params.dim-1) = x((params.N_balls-1)*params.dim-1) - params.z_ref;
+      // set target (set) points    
+      std::default_random_engine re;
+      re.seed(n_seed);
+      std::uniform_real_distribution<real_t> unif(-0.2, 0.2);
+      h((params.N_balls-1)*params.dim-3) = x((params.N_balls-1)*params.dim-3) - unif(re);
+      h((params.N_balls-1)*params.dim-2) = x((params.N_balls-1)*params.dim-2) - unif(re);
+      h((params.N_balls-1)*params.dim-1) = x((params.N_balls-1)*params.dim-1) - unif(re);
   }
   void eval_h_N(crvec x, rvec h) const {       
       h = x;
-      h((params.N_balls-1)*params.dim-3) = x((params.N_balls-1)*params.dim-3) - params.x_ref;
-      h((params.N_balls-1)*params.dim-2) = x((params.N_balls-1)*params.dim-2) - params.y_ref;
-      h((params.N_balls-1)*params.dim-1) = x((params.N_balls-1)*params.dim-1) - params.z_ref; 
+      // set target (set) points   
+      std::default_random_engine re; 
+      re.seed(n_seed);
+      std::uniform_real_distribution<real_t> unif(-0.2, 0.2);
+      h((params.N_balls-1)*params.dim-3) = x((params.N_balls-1)*params.dim-3) - unif(re);
+      h((params.N_balls-1)*params.dim-2) = x((params.N_balls-1)*params.dim-2) - unif(re);
+      h((params.N_balls-1)*params.dim-1) = x((params.N_balls-1)*params.dim-1) - unif(re); 
   }
   [[nodiscard]] real_t eval_l([[maybe_unused]] index_t timestep, crvec h) const {
       alpaqa::ScopedMallocAllower ma;

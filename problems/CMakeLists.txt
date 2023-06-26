@@ -2,11 +2,8 @@ add_library(problems
 
 # benchmark problems
 "linear_dynamics.hpp"
-"nonlinear_example1.hpp"
+"nonlinear_dynamics.hpp"
 "quadcopter.hpp"
-
-# benchmark problems using AD
-"quadcopter_AD.hpp"
 "hanging_chain.hpp"
 "small_hanging_chain.hpp"
 

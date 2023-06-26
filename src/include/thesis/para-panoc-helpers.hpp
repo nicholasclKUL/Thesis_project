@@ -24,6 +24,8 @@ void eval_iterate_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec y, 
     auto nh = problem.get_nh();
     auto nh_N = problem.get_nh_N();
 
+    auto κ = 1; 
+
     vec xo(nx);
     problem.get_x_init(xo);
 
@@ -37,20 +39,20 @@ void eval_iterate_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec y, 
                         It.hxu.segment(k*nxu,nx), 
                         It.qr.segment(k*nxu,nx));
     } else {
-        problem.eval_f(k, It.xu.segment(k*nxu,nx),
+        problem.eval_f(k, κ*It.xu.segment(k*nxu,nx),
                         It.xu.segment((k*nxu)+nx,nu), 
                         It.fxu.segment(k*nx,nx));
-        problem.eval_jac_f(k, It.xu.segment(k*nxu,nx),
+        problem.eval_jac_f(k, κ*It.xu.segment(k*nxu,nx),
                         It.xu.segment((k*nxu)+nx,nu),
                         It.Jfxu.block(k*nx,0,nx,nxu));
         problem.eval_h(k, It.xu.segment(k*nxu,nx), 
                         It.xu.segment((k*nxu)+nx,nu),
-                        It.hxu.segment(k*nxu,nxu));            
+                        It.hxu.segment(k*nxu,nxu));          
         It.lxu(k) = problem.eval_l(k, It.hxu.segment(k*nh,nh));
         problem.eval_qr(k, It.xu.segment(k*nxu,nxu), 
                         It.hxu.segment(k*nxu,nxu),
                         It.qr.segment(k*nxu,nxu));
-        It.g.segment(k*nx,nx) = It.fxu.segment(k*nx,nx) - It.xu.segment((k+1)*nxu,nx);           
+        It.g.segment(k*nx,nx) = It.fxu.segment(k*nx,nx) - κ*It.xu.segment((k+1)*nxu,nx);           
         It.gz.segment(k*nx,nx) = It.g.segment(k*nx,nx) + 
                                 ((μ).segment(k*nx,nx).asDiagonal().inverse()*(y.segment(k*nx,nx)));            
         It.Π_D.segment(k*nx,nx).noalias() = eval_proj_set(F, It.gz.segment(k*nx,nx));
@@ -59,7 +61,7 @@ void eval_iterate_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec y, 
                                 + y.segment(k*nx,nx));          
     }
     if (k_ == 0){
-        It.g.bottomRows(nx) = xo - It.xu.segment(0,nx);           
+        It.g.bottomRows(nx) = xo - κ*It.xu.segment(0,nx);           
         It.gz.bottomRows(nx) = It.g.bottomRows(nx) + 
                                 ((μ).bottomRows(nx).asDiagonal().inverse()*(y.bottomRows(nx)));            
         It.Π_D.bottomRows(nx).noalias() = eval_proj_set(F, It.gz.bottomRows(nx));
@@ -68,35 +70,8 @@ void eval_iterate_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec y, 
     }
 } 
 
-// template <typename Problem>
-// void eval_grad_f_plus_prod_grad_g_y(int k, Problem &problem, rvec grad_L_or_ψ, mat Jfxu, crvec qr, crvec y){ 
-    
-//     auto nx = problem.get_nx();
-//     auto nu = problem.get_nu();
-//     auto nxu = problem.get_nx() + problem.get_nu(); 
-//     auto N = problem.get_N() + 1;
-    
-//     Eigen::Index k_ = k;
-
-//     if (k_ == N-1){
-//         grad_L_or_ψ.segment(k*nxu,nx) = qr.segment(k*nxu,nx) - y.segment((k-1)*nx,nx);                            
-//     } 
-//     else if(k_ == 0){
-//         grad_L_or_ψ.segment(nx,nu) = qr.segment(nx,nu) +
-//                     Jfxu.block(0,nx,nx,nu).transpose() * y.segment(k*nx,nx);
-//         grad_L_or_ψ.segment(0,nx).setZero();
-//     }
-//     else {
-//         grad_L_or_ψ.segment(k*nxu,nxu) = qr.segment(k*nxu,nxu) - mat::Identity(nxu, nx)*y.segment((k-1)*nx,nx) +
-//                     Jfxu.block(k*nx,0,nx,nxu).transpose() * y.segment(k*nx,nx);
-//     }
-
-// } 
-
 template <typename Iterate, typename Problem>
 void eval_grad_ψ_k_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec y){
-
-    // eval_grad_f_plus_prod_grad_g_y(k, problem, It.grad_ψ, It.Jfxu, It.qr, It.Z);
 
     auto nx = problem.get_nx();
     auto nu = problem.get_nu();
@@ -168,6 +143,8 @@ real_t eval_ψ_hat_k_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec 
     real_t ψxû_k = 0;
     Eigen::Index i_ = k;
 
+    real_t κ = 1; 
+
     if (i_ == N-1){
         problem.eval_h_N(It.xû.segment(k*nxu,nx),
                         It.hxû.segment(k*nxu,nx));
@@ -175,7 +152,7 @@ real_t eval_ψ_hat_k_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec 
         return ψxû_k = It.lxû(k);
     } 
     else if (i_ == 0){
-        problem.eval_f(k, It.xû.segment(k*nxu,nx),
+        problem.eval_f(k, κ*It.xû.segment(k*nxu,nx),
                     It.xû.segment(k*(nxu)+nx,nu), 
                     It.fxû.segment(k*nx,nx));
         problem.eval_h(k, It.xû.segment(k*nxu,nx), 
@@ -184,7 +161,7 @@ real_t eval_ψ_hat_k_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec 
         It.lxû(k) = problem.eval_l(k, It.hxû.segment(k*nh,nh)); 
         // f(x_{0},u_{0}) = x_{1}                      
         It.gz_hat.segment(k*nx,nx) = It.fxû.segment(k*nx,nx) - 
-                        It.xû.segment((k+1)*nxu,nx)  
+                        κ*It.xû.segment((k+1)*nxu,nx)  
                         + ((μ).segment(k*nx,nx).asDiagonal().inverse()*(y.segment(k*nx,nx)));
         It.Π_D_hat.segment(k*nx,nx) = eval_proj_set(F, It.gz_hat.segment(k*nx,nx));  
         auto d = (It.gz_hat.segment(k*nx,nx)-
@@ -201,7 +178,7 @@ real_t eval_ψ_hat_k_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec 
                     0.5*d1.transpose()*(μ).bottomRows(nx).asDiagonal()*d1; 
     }
     else {
-        problem.eval_f(k, It.xû.segment(k*nxu,nx),
+        problem.eval_f(k, κ*It.xû.segment(k*nxu,nx),
                     It.xû.segment(k*(nxu)+nx,nu), 
                     It.fxû.segment(k*nx,nx));
         problem.eval_h(k, It.xû.segment(k*nxu,nx), 
@@ -209,7 +186,7 @@ real_t eval_ψ_hat_k_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec 
                         It.hxû.segment(k*nxu,nxu));
         It.lxû(k) = problem.eval_l(k, It.hxû.segment(k*nh,nh));                       
         It.gz_hat.segment(k*nx,nx) = It.fxû.segment(k*nx,nx) - 
-                        It.xû.segment((k+1)*nxu,nx)  
+                        κ*It.xû.segment((k+1)*nxu,nx)  
                         + ((μ).segment(k*nx,nx).asDiagonal().inverse()*(y.segment(k*nx,nx)));
         It.Π_D_hat.segment(k*nx,nx) = eval_proj_set(F, It.gz_hat.segment(k*nx,nx));  
         auto d = (It.gz_hat.segment(k*nx,nx)-
@@ -325,7 +302,7 @@ void eval_GN_accelerator_fun (int k, Iterate &It, Problem &problem, crvec μ){
 }
 
 template <typename Iterate, typename Problem>
-void fd_grad_ψ_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec y, Box &F, real_t h){
+void fd_grad_ψ_fun (Iterate &It, Problem &problem, crvec μ, crvec y, Box &F, real_t h){
     alpaqa::ScopedMallocAllower ma;
         
     real_t ψxu_     = 0;
@@ -373,7 +350,7 @@ void fd_grad_ψ_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec y, Bo
         }
         g.bottomRows(nx) = xu_.segment(0,nx) - xo;
         d.noalias() = g + μ.asDiagonal().inverse()*y; 
-        for (index_t i = 0; i < N-1; ++i){
+        for (index_t k = 0; k < N-1; ++k){
             v.segment(k*nx,nx) = d.segment(k*nx,nx) - eval_proj_set(F, d.segment(k*nx,nx));
         } 
         v.bottomRows(nx) = d.bottomRows(nx) - eval_proj_set(F, d.bottomRows(nx));
@@ -382,3 +359,7 @@ void fd_grad_ψ_fun (int k, Iterate &It, Problem &problem, crvec μ, crvec y, Bo
     }
 }
 
+
+void AD_grad_ψ_fun(){
+
+}

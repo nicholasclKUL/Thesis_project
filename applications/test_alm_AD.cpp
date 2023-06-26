@@ -7,12 +7,9 @@
 
 #include <thesis/para-panoc.hpp>
 #include <thesis/printing.hpp>
-#include <nonlinear_example1.hpp>
-#include <linear_dynamics.hpp>
-#include <quadcopter_AD.hpp>
-// #include <hanging_chain.hpp>
-#include <quadcopter.hpp>
 #include <thesis/ocp-kkt-error.hpp>
+
+#include <hanging_chain.hpp>
 
 #include <iomanip>
 #include <iostream>
@@ -29,7 +26,7 @@ int main() {
     
     {
 
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<Quadcopter>();
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<HangingChain>();
 
     // Problem dimensions
     
@@ -66,31 +63,33 @@ int main() {
     params.stop_crit = alpaqa::PANOCStopCrit::ProjGradUnitNorm2;
     params.gn_interval = 0; //GN disabled
     params.print_interval = 0;
-    params.max_iter = 100;
+    params.max_iter = 10000;
     params.disable_acceleration = false;
+    params.linesearch_tolerance_factor = 1e-01;
     
     //Outer:
     alpaqa::ALMParams almparams; 
     almparams.tolerance = 1e-6;
-    almparams.max_iter = 1000;
+    almparams.max_iter = 300;
     almparams.print_interval = 1;
-    almparams.max_time = std::chrono::minutes(15);
+    almparams.initial_penalty = 1e4;
+    almparams.max_time = std::chrono::minutes(60);
 
     // Solving
     
-    // //MS:
-    // alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver_ms{almparams,{params}};
-    // auto stats_ms = almsolver_ms(problem, xu, y_ms, ϵ, nt);
-    // printing::print_stats_outer(stats_ms);
-    // alpaqa::KKTiterate<config_t> it(n_ms,m_ms,problem.get_nx(),problem.get_nu()+problem.get_nx());
-    // auto kkt = alpaqa::compute_kkt_error(problem, it, xu, y_ms, nt);
-    // printing::kkt_error(kkt);
-    // printing::print_solution(problem, xu);
+    //MS:
+    alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver_ms{almparams,{params}};
+    auto stats_ms = almsolver_ms(problem, xu, y_ms, ϵ, nt);
+    printing::print_stats_outer(stats_ms);
+    alpaqa::KKTiterate<config_t> it(n_ms,m_ms,problem.get_nx(),problem.get_nu()+problem.get_nx());
+    auto kkt = alpaqa::compute_kkt_error(problem, it, xu, y_ms, nt);
+    printing::kkt_error(kkt);
+    printing::print_solution(problem, xu);
 
     //SS:
-    params.max_iter = 1000;
+    params.max_iter = 10000;
     params.gn_interval = 0;
-    params.print_interval = 1;
+    params.print_interval = 100;
     alpaqa::ALMSolver<alpaqa::PANOCOCPSolver<config_t>> almsolver_ss{almparams,{params}};
     // almsolver_ss.inner_solver.set_progress_callback(progress_callback);
     auto stats_ss = almsolver_ss(problem, u, y);
@@ -98,19 +97,18 @@ int main() {
     printing::print_solution_ss(problem, u);
 
     //simulate states for ss control action:
-    vec x(problem.get_nx()), fxu(problem.get_nx()),
-        x_ss(problem.get_nx()*problem.get_N()); 
-    problem.get_x_init(x);
-    std::cout<<'\n'<<std::endl;
-    for (size_t i = 0; i < problem.get_N(); ++i){
-        problem.eval_f(i, x, u.segment(i*problem.get_nu(),problem.get_nu()),fxu);
-        x_ss.segment(i*problem.get_nx(),problem.get_nx()) = x;
-        x = fxu;
-        std::cout<<std::scientific<<"["<<fxu.transpose()<<"]"<<std::endl;
-    }
+    // vec x(problem.get_nx()), fxu(problem.get_nx()),
+    //     x_ss(problem.get_nx()*problem.get_N()); 
+    // problem.get_x_init(x);
+    // std::cout<<'\n'<<std::endl;
+    // for (size_t i = 0; i < problem.get_N(); ++i){
+    //     problem.eval_f(i, x, u.segment(i*problem.get_nu(),problem.get_nu()),fxu);
+    //     x_ss.segment(i*problem.get_nx(),problem.get_nx()) = x;
+    //     x = fxu;
+    //     std::cout<<std::scientific<<"["<<fxu.transpose()<<"]"<<std::endl;
+    // }
     
-    // HangingChain hg;
-    Quadcopter hg;
+    HangingChain hg;
     auto kkt_ss = alpaqa::compute_kkt_error(problem, u, hg.Q, hg.R);
     printing::kkt_error(kkt_ss);
 

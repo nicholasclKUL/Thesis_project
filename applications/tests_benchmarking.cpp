@@ -13,9 +13,6 @@
 #include <thesis/para-panoc.hpp>
 #include <thesis/printing.hpp>
 
-#include <nonlinear_example1.hpp>
-#include <linear_dynamics.hpp>
-#include <hanging_chain.hpp>
 #include <quadcopter.hpp>
 
 #include <iomanip>
@@ -26,14 +23,18 @@
 
 int main() {
 
+    Kokkos::initialize(Kokkos::InitializationSettings().set_num_threads(1));
+
+    {
+
     USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
     // Create Problem
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<NonlinearOCP1>();
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<QuadcopterAD>();
 
     // Problem dimensions
     const auto n_ms = (problem.get_nx()+problem.get_nu())*(problem.get_N())+problem.get_nx(),
-               m_ms = problem.get_nx()*(problem.get_N()),
+               m_ms = problem.get_nx()*(problem.get_N()+1),
                nt = problem.get_N()+1;
 
     // Containers
@@ -47,22 +48,30 @@ int main() {
     // Solver Options
     // Inner:
     alpaqa::PANOCOCPParams<config_t> params;
-    params.stop_crit = alpaqa::PANOCStopCrit::ProjGradNorm2;
+    params.stop_crit = alpaqa::PANOCStopCrit::ProjGradUnitNorm2;
     params.gn_interval = 0;
     params.print_interval = 0;
     params.max_iter = 10000;
+    params.linesearch_tolerance_factor = 1e-1;
     params.disable_acceleration = false;
+    params.max_time = std::chrono::minutes(7);
     // Outer:
     alpaqa::ALMParams almparams; 
+    almparams.max_time = std::chrono::minutes(120);
     almparams.tolerance = 1e-4;
-    almparams.max_iter = 1000;
-    almparams.print_interval = 0;
+    almparams.max_iter = 500;
+    almparams.print_interval = 1;
+    almparams.initial_penalty = 1e3;
+    real_t tol = 1; 
 
     // Solve
     alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver_ms{almparams,{params}};
-    Kokkos::initialize(Kokkos::InitializationSettings().set_num_threads(1));
-    auto stats_ms = almsolver_ms(problem, xu, y_ms, nt);
-    Kokkos::finalize();
+    auto stats_ms = almsolver_ms(problem, xu, y_ms, tol, nt);
     printing::print_stats_outer(stats_ms);
+    printing::print_solution(problem, xu);
+
+    }
+
+    Kokkos::finalize();
 
 }

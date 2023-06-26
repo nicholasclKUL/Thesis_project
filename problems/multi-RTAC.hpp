@@ -3,6 +3,14 @@
 #include <alpaqa/config/config.hpp>
 #include <alpaqa/util/float.hpp>
 #include <alpaqa/problem/ocproblem.hpp>
+#include <iomanip>
+#include <iostream>
+#include <functional>
+
+// __________________________________________________________________________________________________________________________________________________________________________ //
+// Quadcopter using AD
+
+
 #include <Eigen/Core>
 #include <Sacado.hpp>
 #include <Kokkos_Core.hpp>
@@ -10,74 +18,82 @@
 #include <thesis/auto-diff-sacado-helpers.hpp>
 #include <time-discretization.hpp>
 
-#include <iomanip>
-#include <iostream>
-#include <functional>
 #include <vector>
+#include <climits>
+#include <cstdlib>
+#include <ctime>
+#include <random>
+#include <chrono>
 
 //dynamic model described in https://www.codeproject.com/Articles/5335232/Optimal-Control-of-a-Quadcopter#l2
 
 USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
-// Dynamics
 template <typename X, typename J, typename Params>
-void dynamics(index_t &k, X &xu, J &fxu, const Params &params){
-    fxu(0) = xu(1);
-    fxu(1) = (params.a1*xu(3)*xu(5) + params.b1*xu(13));
-    fxu(2) = xu(3);    
-    fxu(3) = (params.a2*xu(1)*xu(5) + params.b2*xu(14));
-    fxu(4) = xu(5);
-    fxu(5) = (params.a3*xu(1)*xu(3) + params.b1*xu(15));
-    fxu(6) = xu(7);
-    fxu(7) = (cos(xu(0))*sin(xu(2))*cos(xu(4)) + sin(xu(0))*sin(xu(4))) * xu(15) / params.M;
-    fxu(8) = xu(9);
-    fxu(9) = (cos(xu(0))*sin(xu(2))*sin(xu(4)) - sin(xu(0))*cos(xu(4))) * xu(15) / params.M;
-    fxu(10) = xu(11);
-    fxu(11) = (cos(xu(0))*cos(xu(2))) * xu(15) / (params.M-params.g);
-}
+void dynamics(index_t &k, X &xu, J &fxu, const Params &params){    
+
+  size_t j = 0;
+
+  for (size_t i = 0; i < params.nx; i += 4){
+    {
+      fxu(i)    = xu(1+i);
+      fxu(1+i)  = (-xu(i)+(params.ϵ*std::pow(xu(3+i),2)*sin(xu(2+i))))/(1-(std::pow(params.ϵ,2)*std::pow(cos(xu(2+i)),2)))
+                - xu(params.nx+j)*(params.ϵ*cos(xu(2+i)))/(1-(std::pow(params.ϵ,2)*std::pow(cos(xu(2+i)),2)));
+      fxu(2+i)  = xu(3+1);
+      fxu(3+i)  = params.ϵ*cos(xu(2+i))*(xu(i)-(params.ϵ*std::pow(xu(3+i),2)*sin(xu(2+i))))/(1-(std::pow(params.ϵ,2)*std::pow(cos(xu(2+i)),2)))
+                + xu(params.nx+j)*(1-(std::pow(params.ϵ,2)*std::pow(cos(xu(2+i)),2)));
+    }
+    j++;
+  }
+  
+}; 
 
 // Horizon length, number of states and input for compile time allocation of AD views
-const int p_N = 15, p_nx = 12, p_nu = 4, p_nh = 16; 
+const int p_N = 30,
+          p_Nc = 3,
+          p_nx = 4*p_Nc, 
+          p_nu = p_Nc,
+          p_nh = p_nx + p_nu; 
 
 using AD_obj = AD<p_nx+p_nu,p_nx,p_nh>;
 
 // Create the Control Problem object to pass on to the Solver
-struct QuadcopterAD{
+struct MultiRTAC{
 
   using Box = alpaqa::Box<config_t>;
 
   struct Params{
-    length_t  T = 3;                     ///< Time horizon (s) 
 
-    // OCP parameters:
-    length_t  N = p_N,                   ///< Total horizon length
-            nu = p_nu,                     ///< Number of inputs
-            nx = p_nx,                    ///< Number of states  
-            nh = p_nh,               ///< Number of stage outputs
-          nh_N = p_nx,                    ///< Number of terminal outputs
-            nc = 0,                     ///< Number of stage constraints
-          nc_N = 0,                     ///< Number of terminal constraints
-              n = ((nx + nu) * N) - nu;  ///< Total number of decision variables 
+    real_t   M = 1.7428,
+             m = 0.2739,
+             e = 0.0537,
+             I = 0.000884,
+             k = 200,
+            mc = 0.0017,
+            kc = 0.166,
+             ϵ = m*e/std::sqrt((I+m*e*e)*(M+m));
 
-    // Dynamics and discretization parameters:
-    real_t Ts = real_t(T)/real_t(N),     ///< Discretization step length
-          g  = 9.81,                     
-          M  = 0.65,                 
-          I  = 0.23,
-          Jx = 7.5e-3,
-          Jy = 7.5e-3,
-          Jz = 1.3e-2,
+    length_t N_carts  = p_Nc;     ///< Number of balls + fixed and free-end
+  
+    length_t   N = p_N,           ///< Horizon length
+              nu = p_nu,          ///< Number of inputs
+              nx = p_nx,          ///< Number of states : x_0 to x_N and v_0 to v_N, 
+                                  // *remember f(x_0) = f(v_0) = f(v_N) = 0    
+              nh = p_nh,          ///< Number of stage outputs
+            nh_N = p_nx,            ///< Number of terminal outputs
+              nc = 0,             ///< Number of stage constraints
+            nc_N = 0,             ///< Number of terminal constraints
+              n = ((nx+nu)*N)    ///< Total number of decision variables
+                  - nu;  
 
-          a1 = (Jy-Jz)/Jx,
-          a2 = (Jz-Jx)/Jy,
-          a3 = (Jx-Jy)/Jz,
-          b1 = I/Jx,
-          b2 = I/Jy,
-          b3 = I/Jz;
+    real_t    T = 1.,
+              Ts = T/real_t(N);          ///< Sampling time
 
   };
 
   Params params;
+
+unsigned long int n_seed = 1;
    
   // QR matrix diagonal:
   vec Q, R, QR; 
@@ -85,9 +101,9 @@ struct QuadcopterAD{
   // Automatic Differentiation object:
   AD_obj ad_obj[p_N]; 
 
-  QuadcopterAD() : Q(params.nx), R(params.nu), QR(params.nx+params.nu) {
-    Q << 200, 200, 500, 50, 50, 50, 100, 100, 100, 90, 90, 90;
-    R << 0.005, 0.005, 0.005, 0.005;
+  MultiRTAC() : Q(params.nx), R(params.nu), QR(params.nx+params.nu) {
+    Q.setConstant(1.);
+    R.setConstant(.005);
     QR << Q, R;
   }
 
@@ -112,31 +128,31 @@ struct QuadcopterAD{
   void get_D_N(Box &D) const {}
 
   void get_x_init(rvec x_init) const {
-    if (x_init.size() <= params.nu*params.N){
-      x_init.setConstant(0);
-      x_init(0) = -0.25;
-      x_init(1) = 0.51;
-      x_init(2) = -0.32;
-    }
-    else{
-      x_init.setConstant(0.);
-      for (size_t i = 0; i < params.N-1; ++i){
-        x_init(0+(i*(params.nx+params.nu))) = -0.25; //x
-        x_init(1+(i*(params.nx+params.nu))) = 0.51;  //y
-        x_init(2+(i*(params.nx+params.nu))) = -0.32;  //z
+    
+    std::default_random_engine re;
+    re.seed(n_seed);
+    std::uniform_real_distribution<real_t> unif(-0.2, 0.2);
+    
+    x_init.setConstant(0.05);
+    for (size_t i = 0; i < params.nx; i += 4*params.N_carts){
+      for (size_t j = 0; j < params.N_carts; ++j){
+        x_init(i+(4*j)) = real_t(j) + 1. + unif(re);
       }
     }
+
   }
 
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const { 
     alpaqa::ScopedMallocAllower ma;
     vec xu(params.nx+params.nu); xu << x, u;
     fe(timestep, xu, fxu, params);
+    // rk4(timestep, xu, fxu, params);
   } 
   void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
     fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx>(Jfxu, ad_obj[timestep]);
   }
 
@@ -145,6 +161,7 @@ struct QuadcopterAD{
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
     fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx> (grad_fxu_p, p, ad_obj[timestep]);
   }
 

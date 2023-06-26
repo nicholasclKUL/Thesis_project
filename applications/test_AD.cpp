@@ -7,10 +7,10 @@
 
 #include <thesis/para-panoc.hpp>
 #include <thesis/printing.hpp>
-#include <nonlinear_example1.hpp>
+// #include <nonlinear_dynamics.hpp>
 #include <linear_dynamics.hpp>
-#include <quadcopter_AD.hpp>
-#include <quadcopter.hpp>
+// #include <quadcopter.hpp>
+// #include <hanging_chain.hpp>
 #include <thesis/ocp-kkt-error.hpp>
 
 #include <iomanip>
@@ -22,66 +22,69 @@ int main() {
 
     {
 
-    USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
+        USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<Quadcopter>();
-    auto problemAD = alpaqa::TypeErasedControlProblem<config_t>::make<QuadcopterAD>();
+        auto problemAD = alpaqa::TypeErasedControlProblem<config_t>::make<LinearOCPAD>();
 
-    // Problem dimensions
-    const auto n_ms = (problem.get_nx()+problem.get_nu())*(problem.get_N())+problem.get_nx(),
-               m_ms = problem.get_nx()*(problem.get_N()+1),
-               nt = problem.get_N()+1;
+        LinearOCPAD locp;
 
-    //MS-Parallel:
-    real_t ϵ = 1e-0;            // Continuity tolerance factor
-    vec   xu = vec::Zero(n_ms), // Inputs
-        y_ms = vec::Zero(m_ms), // Lagrange multipliers
-        μ_ms = vec::Ones(m_ms), // Penalty factors
-        e_ms(m_ms),             // Constraint violation
-        g_ms(m_ms);             // Continuity violation
-    problem.get_x_init(xu);
+        auto h = locp.params.Ts;
+        auto A = locp.params.A;
+        auto B = locp.params.B;
+        auto nx = locp.params.nx;
+        auto nu = locp.params.nu;
 
-    // Solver
-    alpaqa::PANOCOCPParams<config_t> params;
-    params.stop_crit      = alpaqa::PANOCStopCrit::FPRNorm;
-    params.gn_interval    = 0;
-    params.print_interval = 1;
-    params.max_iter = 100;
-    params.disable_acceleration = false;
-    auto tol = 1e-4;
-    
-    //Solve 
-    alpaqa::ParaPANOCSolver<config_t> solver_ms{params};
-    auto stats_ms = solver_ms(problem, {.tolerance = tol}, xu, y_ms, μ_ms, e_ms, g_ms, nt);
-    printing::print_stats_inner(stats_ms, e_ms);
+        vec xu(nx+nu),
+                fxu(nx);
 
-    // AD
-    //Reset Values
-    xu = vec::Zero(n_ms);   // Inputs
-    y_ms = vec::Zero(m_ms); // Lagrange multipliers
-    μ_ms = vec::Ones(m_ms); // Penalty factors
-    e_ms.setConstant(alpaqa::NaN<config_t>);
-    g_ms.setConstant(alpaqa::NaN<config_t>);
-    problem.get_x_init(xu);
-    //Solve
-    alpaqa::ParaPANOCSolver<config_t> solver_ms_AD{params};
-    auto stats_ms_AD = solver_ms_AD(problemAD, {.tolerance = tol}, xu, y_ms, μ_ms, e_ms, g_ms, nt);
-    printing::print_stats_inner(stats_ms_AD, e_ms);
+        mat Jfxu(nx,nx+nu),
+                JfxuAD(nx,nx+nu);
 
-    //Comparing Jacobians
-    vec x(12), u(4); 
-    mat Jfxu(12,16), JfxuAD(12,16), e(12,16);
-    x << -2, 0.1, 3, -.5, .8, -1, .7, 2, 3, .4, -.8, 3; 
-    u << 1, -0.5, 2, 0.73;
-    Jfxu.setConstant(0.); JfxuAD.setConstant(0.);
+        xu << 0.7, 1.0, 0.3, 0.5, 0.9;
 
-    problemAD.eval_jac_f(0, x, u ,Jfxu);
-    problemAD.eval_jac_f(0, x, u ,JfxuAD);
-    e = Jfxu - Jfxu;
+        // Simulation using RK4
 
-    std::cout<<'\n'<<Jfxu<<'\n'<<std::endl;
-    std::cout<<'\n'<<JfxuAD<<'\n'<<std::endl;
-    std::cout<<'\n'<<e<<'\n'<<std::endl;
+        problemAD.eval_f(0,xu.segment(0,nx),xu.segment(nx,nu),fxu);
+        
+        auto k1 = A * xu.segment(0,nx) + 
+                B* xu.segment(nx,nu);
+
+        auto k2 = A * (xu.segment(0,nx) + (h/2) * k1) + 
+                B* xu.segment(nx,nu);
+
+        auto k3 = A * (xu.segment(0,nx) + (h/2) * k2) + 
+                B* xu.segment(nx,nu); 
+
+        auto k4 = A * (xu.segment(0,nx) + (h) * k3) + 
+                B* xu.segment(nx,nu);
+
+        auto x1 = xu.segment(0,nx) + (h/6.0) * (k1 + 2.0*k2 + 2.0*k3 + k4);
+
+        std::cout<<x1-fxu<<std::endl;
+
+        // Jacobian of RK4
+
+        auto dk1_dx = h*A;
+        auto dk1_du = B;
+
+        auto dk2_dx = (std::pow(h,2)/2)*A*A + h*A;
+        auto dk2_du = (std::pow(h,1)/2)*A*B + B;
+
+        auto dk3_dx = (std::pow(h,3)/4)*A*A*A + (std::pow(h,2)/2)*A*A + h*A;
+        auto dk3_du = (std::pow(h,2)/4)*A*A*B + (h/2)*A*B + B;
+
+        auto dk4_dx = (std::pow(h,4)/4)*A*A*A*A + (std::pow(h,3)/2)*A*A*A + (std::pow(h,2))*A*A + h*A;
+        auto dk4_du = (std::pow(h,3)/4)*A*A*A*B + (std::pow(h,2)/2)*A*A*B + h*A*B + B;
+
+        Jfxu.leftCols(nx) = mat::Identity(nx,nx) + 
+                (1./6.) * (dk1_dx + 2*dk2_dx + 2*dk3_dx + dk4_dx);
+        Jfxu.rightCols(nu) = (h/6.) * (dk1_du + 2*dk2_du + 2*dk3_du + dk4_du);
+
+        problemAD.eval_jac_f(0, xu.segment(0,nx), xu.segment(nx,nu), JfxuAD);
+
+        std::cout<<Jfxu<<'\n'<<JfxuAD<<std::endl;
+
+        std::cout<<Jfxu-JfxuAD<<std::endl;
 
     }
 

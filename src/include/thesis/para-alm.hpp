@@ -231,14 +231,15 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, real_t
                                                 Σ_old, Σ, true);
                 // Recompute the primal tolerance with larger ρ
                 ρ = std::fmin(params.ρ_max, ρ * params.ρ_increase);
-                //ε = std::fmax(ρ * ε_old, params.tolerance);
+                ε = std::fmax(ρ * ε_old, params.tolerance);
+                // ε_old = std::exchange(ε, std::fmax((1e-3)*std::pow(alpaqa::vec_util::norm_inf(Σ),-1.01), params.tolerance)); //? @ref Fang et al.
+
                 ++s.penalty_reduced;
             } else {
                 // We don't have a previous Σ, simply lower the current Σ and
                 // increase ε
                 Σ *= params.initial_penalty_lower;
-                //ε *= params.initial_tolerance_increase;
-                ε_old = std::exchange(ε, std::fmax((1e-3)*std::pow(alpaqa::vec_util::norm_inf(Σ),-1.01), params.tolerance));
+                ε *= params.initial_tolerance_increase;
                 ++s.initial_penalty_reduced;
             }
         }
@@ -251,7 +252,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, real_t
             // Check the termination criteria
             real_t continuity = vec_util::norm_inf(g); // continuity of PDEs between stages
             bool alm_converged =
-                ((ps.ε <= params.tolerance && inner_converged && norm_e_1 <= params.dual_tolerance) || (continuity <= params.tolerance*ϵ));
+                ((ps.ε <= params.tolerance && inner_converged && norm_e_1 <= params.dual_tolerance));
             bool exit = alm_converged || out_of_iter || out_of_time;
             if (exit) {
                 s.ε                = ps.ε;
@@ -273,8 +274,8 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, real_t
                 params, Δ, num_successful_iters == 0, error_1, error_2,
                 norm_e_1, norm_e_2, Σ_old, Σ, true);
             // Lower the primal tolerance for the inner solver.
-            ε_old = std::exchange(ε, std::fmax((1e-3)*std::pow(alpaqa::vec_util::norm_inf(Σ),-1.01), params.tolerance));
-            // ε_old = std::exchange(ε, std::fmax(ρ * ε, params.tolerance));
+            // ε_old = std::exchange(ε, std::fmax((1e-3)*std::pow(alpaqa::vec_util::norm_inf(Σ),-1.01), params.tolerance)); //? @ref Fang et al.
+            ε_old = std::exchange(ε, std::fmax(ρ * ε, params.tolerance));
             ++num_successful_iters;
         }
     }
