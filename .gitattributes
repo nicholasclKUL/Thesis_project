@@ -1,0 +1,4 @@
+/home/nicholas/Thesis_project/installation/lib/libalpaqa_d.a filter=lfs diff=lfs merge=lfs -text
+/home/nicholas/Thesis_project/installation/lib/libalpaqa_rd.a filter=lfs diff=lfs merge=lfs -text
+/installation/lib/libalpaqa_rd.a filter=lfs diff=lfs merge=lfs -text
+/installation/lib/libalpaqa_d.a filter=lfs diff=lfs merge=lfs -text

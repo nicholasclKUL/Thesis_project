@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC  -fPIC -fvisibility=hidden -fvisibility-inlines-hidden  -O3 -DNDEBUG -shared -Wl,-soname,libcasadi_sundials_common.so.3.6 -o ../../../lib/libcasadi_sundials_common.so.3.6 CMakeFiles/casadi_sundials_common.dir/sundials_interface.cpp.o  -Wl,-rpath,/home/nicholas/casadi/build/lib: ../../../lib/libcasadi.so.3.6 ../../../lib/libcasadi_sundials.a -ldl 

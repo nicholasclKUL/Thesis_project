@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC  -fPIC -fvisibility=hidden -fvisibility-inlines-hidden  -O3 -DNDEBUG -shared -Wl,-soname,libcasadi_nlpsol_qrsqp.so.3.6 -o ../../lib/libcasadi_nlpsol_qrsqp.so.3.6 CMakeFiles/casadi_nlpsol_qrsqp.dir/qrsqp.cpp.o CMakeFiles/casadi_nlpsol_qrsqp.dir/qrsqp_meta.cpp.o  -Wl,-rpath,/home/nicholas/casadi/build/lib: ../../lib/libcasadi.so.3.6 -ldl 

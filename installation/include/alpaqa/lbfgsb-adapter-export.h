@@ -1,0 +1,42 @@
+
+#ifndef LBFGSB_ADAPTER_EXPORT_H
+#define LBFGSB_ADAPTER_EXPORT_H
+
+#ifdef LBFGSB_ADAPTER_STATIC_DEFINE
+#  define LBFGSB_ADAPTER_EXPORT
+#  define LBFGSB_ADAPTER_NO_EXPORT
+#else
+#  ifndef LBFGSB_ADAPTER_EXPORT
+#    ifdef lbfgsb_adapter_EXPORTS
+        /* We are building this library */
+#      define LBFGSB_ADAPTER_EXPORT 
+#    else
+        /* We are using this library */
+#      define LBFGSB_ADAPTER_EXPORT 
+#    endif
+#  endif
+
+#  ifndef LBFGSB_ADAPTER_NO_EXPORT
+#    define LBFGSB_ADAPTER_NO_EXPORT 
+#  endif
+#endif
+
+#ifndef LBFGSB_ADAPTER_DEPRECATED
+#  define LBFGSB_ADAPTER_DEPRECATED __attribute__ ((__deprecated__))
+#endif
+
+#ifndef LBFGSB_ADAPTER_DEPRECATED_EXPORT
+#  define LBFGSB_ADAPTER_DEPRECATED_EXPORT LBFGSB_ADAPTER_EXPORT LBFGSB_ADAPTER_DEPRECATED
+#endif
+
+#ifndef LBFGSB_ADAPTER_DEPRECATED_NO_EXPORT
+#  define LBFGSB_ADAPTER_DEPRECATED_NO_EXPORT LBFGSB_ADAPTER_NO_EXPORT LBFGSB_ADAPTER_DEPRECATED
+#endif
+
+#if 0 /* DEFINE_NO_DEPRECATED */
+#  ifndef LBFGSB_ADAPTER_NO_DEPRECATED
+#    define LBFGSB_ADAPTER_NO_DEPRECATED
+#  endif
+#endif
+
+#endif /* LBFGSB_ADAPTER_EXPORT_H */
