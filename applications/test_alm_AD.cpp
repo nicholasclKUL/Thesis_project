@@ -89,7 +89,6 @@ int main() {
     printing::print_solution(problem, xu);
     index_t Ts = 1;
     std::string problem_name = "Nagumo";
-    printing::output_file(problem, problem_name, xu, Ts);
 
     //SS:
     params.max_iter = 10000;
