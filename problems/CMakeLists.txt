@@ -6,7 +6,6 @@ add_library(problems
 "quadcopter.hpp"
 "quadcopter_full.hpp"
 "hanging_chain.hpp"
-"small_hanging_chain.hpp"
 "nagumo_schlogl.hpp"
 
 # helpers
