@@ -88,19 +88,22 @@ struct HangingChain{
 
   // Hanging chain parameters:
   struct Params{
-    real_t β          = 25;       ///< Q-value for free-end 
-    real_t γ          = 1;        ///< Q-value
-    real_t δ          = 0.01;     ///< R-value
-    real_t m          = 0.03;     ///< mass
-    real_t D          = 1.0;      ///< spring constant
-    real_t L          = 0.033;    ///< spring length
-    real_t v_max      = 0.5;      ///< maximum actuator velocity
-    real_t g          = -9.81;    ///< Gravitational acceleration, [m/s²]
-    length_t N_balls  = p_Nb;     ///< Number of balls + fixed and free-end
-    length_t dim      = p_dim;    ///< Dimensions
-    real_t xo         = 0.0;      ///< Fixed-end position in x
-    real_t yo         = 0.0;      ///< Fixed-end position in y
-    real_t zo         = 0.0;      ///< Fixed-end position in z
+    real_t β          = 25;           ///< Q-value for free-end 
+    real_t γ          = 1;            ///< Q-value
+    real_t δ          = 0.01;         ///< R-value
+    real_t m          = 0.03;         ///< mass
+    real_t D          = 1.0;          ///< spring constant
+    real_t L          = 0.033;        ///< spring length
+    real_t v_max      = 0.5;          ///< maximum actuator velocity
+    real_t g          = -9.81;        ///< Gravitational acceleration, [m/s²]
+    length_t N_balls  = p_Nb;         ///< Number of balls + fixed and free-end
+    length_t dim      = p_dim;        ///< Dimensions
+    real_t xo         = 0.0;          ///< Fixed-end position in x
+    real_t yo         = 0.0;          ///< Fixed-end position in y
+    real_t zo         = 0.0;          ///< Fixed-end position in z
+    real_t x_ref      =(N_balls)*L;   ///< Desired position of x_N
+    real_t y_ref      = 0.0;          ///< Desired position of y_N
+    real_t z_ref      = 0.0;          ///< Desired position of z_N
     real_t a          = -m*g;
     real_t b          = (N_balls+1)*L/2;
   
@@ -109,14 +112,17 @@ struct HangingChain{
               nx = p_nx,          ///< Number of states : x_0 to x_N and v_0 to v_N, 
                                   // *remember f(x_0) = f(v_0) = f(v_N) = 0    
               nh = p_nh,          ///< Number of stage outputs
-            nh_N = p_nx,            ///< Number of terminal outputs
+            nh_N = p_nx,          ///< Number of terminal outputs
               nc = 0,             ///< Number of stage constraints
             nc_N = 0,             ///< Number of terminal constraints
-              n = ((nx+nu)*N)    ///< Total number of decision variables
+              n = ((nx+nu)*N)     ///< Total number of decision variables
                   - nu;  
 
-    real_t    T = 1.,
+    real_t    T = 0.1,
               Ts = T/real_t(N);          ///< Sampling time
+
+    real_t    qub_tol = 1e-4,
+              lin_search_tol = 1e-3;
 
   };
 
@@ -134,6 +140,7 @@ unsigned long int n_seed = 1;
 
   HangingChain() : p_ref(params.dim), po(params.dim), Q(params.nx), R(params.nu), QR(params.nx+params.nu) {
 
+    p_ref << params.x_ref, params.y_ref, params.z_ref;
     po << params.xo, params.yo, params.zo;
     
     Q.segment(0,(params.N_balls-1)*params.dim).setConstant(0); 

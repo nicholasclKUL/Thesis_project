@@ -4,8 +4,10 @@ add_library(problems
 "linear_dynamics.hpp"
 "nonlinear_dynamics.hpp"
 "quadcopter.hpp"
+"quadcopter_full.hpp"
 "hanging_chain.hpp"
 "small_hanging_chain.hpp"
+"nagumo_schlogl.hpp"
 
 # helpers
 "time-discretization.hpp"

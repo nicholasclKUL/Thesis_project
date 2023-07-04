@@ -13,7 +13,7 @@
 #include <thesis/para-panoc.hpp>
 #include <thesis/printing.hpp>
 
-#include <quadcopter.hpp>
+#include <hanging_chain.hpp>
 
 #include <iomanip>
 #include <iostream>
@@ -23,14 +23,14 @@
 
 int main() {
 
-    Kokkos::initialize(Kokkos::InitializationSettings().set_num_threads(1));
+    Kokkos::initialize(Kokkos::InitializationSettings().set_num_threads(16));
 
     {
 
     USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
     // Create Problem
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<QuadcopterAD>();
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<HangingChain>();
 
     // Problem dimensions
     const auto n_ms = (problem.get_nx()+problem.get_nu())*(problem.get_N())+problem.get_nx(),
@@ -51,18 +51,18 @@ int main() {
     params.stop_crit = alpaqa::PANOCStopCrit::ProjGradUnitNorm2;
     params.gn_interval = 0;
     params.print_interval = 0;
-    params.max_iter = 10000;
-    params.linesearch_tolerance_factor = 1e-1;
+    params.max_iter = 5000;
     params.disable_acceleration = false;
-    params.max_time = std::chrono::minutes(7);
+    params.linesearch_tolerance_factor = 1e-02;
+    params.quadratic_upperbound_tolerance_factor = 1e-01;
+    params.max_time = std::chrono::minutes(30);
     // Outer:
     alpaqa::ALMParams almparams; 
-    almparams.max_time = std::chrono::minutes(120);
+    almparams.max_time = std::chrono::minutes(60);
     almparams.tolerance = 1e-4;
     almparams.max_iter = 500;
     almparams.print_interval = 1;
-    almparams.initial_penalty = 1e3;
-    real_t tol = 1; 
+    real_t tol = 1e-0; 
 
     // Solve
     alpaqa::ParaALMSolver<alpaqa::ParaPANOCSolver<config_t>> almsolver_ms{almparams,{params}};

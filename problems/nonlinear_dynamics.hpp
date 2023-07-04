@@ -186,7 +186,7 @@ struct NonlinearOCP1b {
     
     };
 
-unsigned long int n_seed = 4;
+unsigned long int n_seed = 1;
 
     vec Q, R, QR; 
 

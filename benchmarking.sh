@@ -4,8 +4,8 @@
 cd "/home/nicholas/Thesis_project/build/applications"
 export KOKKOS_TOOLS_LIBS="/home/nicholas/kokkos-tools/profiling/simple-kernel-timer/kp_kernel_timer.so"
 
-problems=("NonlinearOCP1b" "QuadcopterAD" "QuadcopterFull" "HangingChain" "MultiRTAC")
-headers=("nonlinear_dynamics.hpp" "quadcopter.hpp" "quadcopter_full.hpp" "hanging_chain.hpp" "multi-RTAC.hpp") 
+problems=("NonlinearOCP1b" "QuadcopterAD" "QuadcopterFull" "HangingChain" "MultiRTAC" "Nagumo")
+headers=("nonlinear_dynamics.hpp" "quadcopter.hpp" "quadcopter_full.hpp" "hanging_chain.hpp" "multi-RTAC.hpp" "nagumo_schlogl.hpp") 
 
 prev_element="${problems[0]}"
 prev_header="${headers[0]}"
@@ -28,7 +28,7 @@ do
     command="./tests_benchmarking"
 
     # Loop N times and run the command
-    for i in {1..3}
+    for i in {1..10}
     do
         sed -i 's/unsigned long int n_seed = '"$i"'/unsigned long int n_seed = '"$((i+1))"'/g' $hpp_file
         echo "Running command: $command for $p"

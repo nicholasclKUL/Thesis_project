@@ -9,7 +9,7 @@
 #include <thesis/printing.hpp>
 #include <thesis/ocp-kkt-error.hpp>
 
-#include <hanging_chain.hpp>
+#include <nagumo_schlogl.hpp>
 
 #include <iomanip>
 #include <iostream>
@@ -22,11 +22,11 @@ void progress_callback(const alpaqa::PANOCOCPProgressInfo<config_t>& info){
 
 int main() {
 
-    Kokkos::initialize(Kokkos::InitializationSettings());
+    Kokkos::initialize(Kokkos::InitializationSettings().set_num_threads(4));
     
     {
 
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<HangingChain>();
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<Nagumo>();
 
     // Problem dimensions
     
@@ -63,16 +63,18 @@ int main() {
     params.stop_crit = alpaqa::PANOCStopCrit::ProjGradUnitNorm2;
     params.gn_interval = 0; //GN disabled
     params.print_interval = 0;
-    params.max_iter = 10000;
+    params.max_iter = 5000;
     params.disable_acceleration = false;
-    params.linesearch_tolerance_factor = 1e-01;
+    params.linesearch_tolerance_factor = 1e-02;
+    params.quadratic_upperbound_tolerance_factor = 1e-01;
+    params.max_time = std::chrono::minutes(90);
     
     //Outer:
     alpaqa::ALMParams almparams; 
-    almparams.tolerance = 1e-6;
+    almparams.tolerance = 1e-5;
     almparams.max_iter = 300;
     almparams.print_interval = 1;
-    almparams.initial_penalty = 1e4;
+    // almparams.initial_penalty = 1e6;
     almparams.max_time = std::chrono::minutes(60);
 
     // Solving
@@ -85,6 +87,9 @@ int main() {
     auto kkt = alpaqa::compute_kkt_error(problem, it, xu, y_ms, nt);
     printing::kkt_error(kkt);
     printing::print_solution(problem, xu);
+    index_t Ts = 1;
+    std::string problem_name = "Nagumo";
+    printing::output_file(problem, problem_name, xu, Ts);
 
     //SS:
     params.max_iter = 10000;
@@ -95,38 +100,10 @@ int main() {
     auto stats_ss = almsolver_ss(problem, u, y);
     printing::print_stats_outer(stats_ss);
     printing::print_solution_ss(problem, u);
-
-    //simulate states for ss control action:
-    // vec x(problem.get_nx()), fxu(problem.get_nx()),
-    //     x_ss(problem.get_nx()*problem.get_N()); 
-    // problem.get_x_init(x);
-    // std::cout<<'\n'<<std::endl;
-    // for (size_t i = 0; i < problem.get_N(); ++i){
-    //     problem.eval_f(i, x, u.segment(i*problem.get_nu(),problem.get_nu()),fxu);
-    //     x_ss.segment(i*problem.get_nx(),problem.get_nx()) = x;
-    //     x = fxu;
-    //     std::cout<<std::scientific<<"["<<fxu.transpose()<<"]"<<std::endl;
-    // }
     
-    HangingChain hg;
+    Nagumo hg;
     auto kkt_ss = alpaqa::compute_kkt_error(problem, u, hg.Q, hg.R);
     printing::kkt_error(kkt_ss);
-
-    // std::cout<<alpaqa::vec_util::norm_inf(y_ms)<<", "<<alpaqa::vec_util::norm_inf(it.qr)<<", "
-    //         <<it.Jfxu.lpNorm<Eigen::Infinity>()<<'\n'<<std::endl;
-
-    // std::cout<<"it.hxu"<<std::setw(16)<<"it.qr"<<std::setw(16)<<"it.grad_L"<<std::setw(16)<<"it.g"<<'\n';
-    // index_t k = 0;
-    // for (size_t i = 0; i < problem.get_N(); ++i){
-    //     for (size_t j = 0; j < problem.get_nx()+problem.get_nu(); j++){
-    //         std::cout<<it.hxu(i*(problem.get_nx()+problem.get_nu())+j)<<std::setw(16)
-    //                  <<it.qr(i*(problem.get_nx()+problem.get_nu())+j)<<std::setw(16)
-    //                  <<it.grad_L(i*(problem.get_nx()+problem.get_nu())+j)<<std::setw(16)
-    //                  <<it.Π_xu(i*(problem.get_nx()+problem.get_nu())+j)-xu(i*(problem.get_nx()+problem.get_nu())+j)<<'\n';
-    //     }
-    //     std::cout<<'\n'<<std::endl;
-    // }
-    // std::cout<<std::endl;
 
     }
 

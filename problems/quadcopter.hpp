@@ -362,7 +362,7 @@ void dynamics(index_t &k, X &xu, J &fxu, const Params &params){
 };
 
 // Horizon length, number of states and input for compile time allocation of AD views
-const int p_N = 30, p_nx = 12, p_nu = 4, p_nh = p_nx + p_nu; 
+const int p_N = 16, p_nx = 12, p_nu = 4, p_nh = p_nx + p_nu; 
 
 using AD_obj = AD<p_nx+p_nu,p_nx,p_nh>;
 
@@ -404,7 +404,7 @@ struct QuadcopterAD{
 
   Params params;
 
-unsigned long int n_seed = 3;
+unsigned long int n_seed = 1;
    
   // QR matrix diagonal:
   vec Q, R, QR; 
@@ -470,14 +470,14 @@ unsigned long int n_seed = 3;
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const { 
     alpaqa::ScopedMallocAllower ma;
     vec xu(params.nx+params.nu); xu << x, u;
-    fe(timestep, xu, fxu, params);
-    // rk4(timestep, xu, fxu, params);
+    // fe(timestep, xu, fxu, params);
+    rk4(timestep, xu, fxu, params);
   } 
   void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
-    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
+    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx>(Jfxu, ad_obj[timestep]);
   }
 
@@ -485,8 +485,8 @@ unsigned long int n_seed = 3;
                         rvec grad_fxu_p) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
-    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
+    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx> (grad_fxu_p, p, ad_obj[timestep]);
   }
 

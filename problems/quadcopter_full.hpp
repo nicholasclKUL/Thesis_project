@@ -45,7 +45,7 @@ void dynamics(index_t &k, X &xu, J &fxu, const Params &params){
 };
 
 // Horizon length, number of states and input for compile time allocation of AD views
-const int p_N = 60, p_nx = 12, p_nu = 4, p_nh = p_nx + p_nu; 
+const int p_N = 16, p_nx = 12, p_nu = 4, p_nh = p_nx + p_nu; 
 
 using AD_obj = AD<p_nx+p_nu,p_nx,p_nh>;
 
@@ -55,7 +55,7 @@ struct QuadcopterFull{
   using Box = alpaqa::Box<config_t>;
 
   struct Params{
-    length_t  T = 1.;                     ///< Time horizon (s) 
+    length_t  T = .5;                     ///< Time horizon (s) 
 
     // OCP parameters:
     length_t  N = p_N,                   ///< Total horizon length
@@ -118,8 +118,8 @@ unsigned long int n_seed = 1;
   [[nodiscard]] length_t get_nc_N() const { return params.nc_N; }
 
   void get_U(Box &U) const {
-    U.lowerbound.setConstant(-alpaqa::inf<config_t>);
-    U.upperbound.setConstant(+alpaqa::inf<config_t>);
+    U.lowerbound.setConstant(-1);
+    U.upperbound.setConstant(+1);
   }
 
   void get_D(Box &D) const {    

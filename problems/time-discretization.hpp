@@ -37,7 +37,7 @@ void assign_rk4_temp(X &xu, K &k, Temp &temp, real_t c){
 }
 template <typename X, typename F, typename Params>
 void rk4(index_t &k, X &xu, F &fxu, const Params &params){
-    
+
     // declare the intermediate containers
     X k1(fxu), k2(fxu), k3(fxu), k4(fxu), temp(xu);
 
@@ -60,7 +60,7 @@ void rk4(index_t &k, X &xu, F &fxu, const Params &params){
 }
 template <typename X, typename F, typename Params>
 void rk4(index_t &k, X &xu, F &fxu, const Params &params, const int p_nxu, const int p_nx){
-    
+
     // declare the intermediate containers
     X k1("k1", p_nx, p_nxu), k2("k2", p_nx, p_nxu), k3("k3", p_nx, p_nxu), 
         k4("k4", p_nx, p_nxu), temp("temp", p_nxu, p_nxu);
