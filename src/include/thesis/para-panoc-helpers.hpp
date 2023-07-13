@@ -4,9 +4,42 @@
 #include <alpaqa/problem/ocproblem.hpp>
 #include <alpaqa/problem/box.hpp>
 
+#include <Eigen/Sparse>
+
 USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
 using Box = alpaqa::Box<config_t>;
+using spmat = Eigen::SparseMatrix<real_t>;
+
+void fill_vecs_GN(rvec val, rvec row, rvec col, rmat work_mat, int init_i, int init_j){
+    assert(row.size() == work_mat.rows()*work_mat.cols() || col.size() == work_mat.rows()*work_mat.cols());
+    for (size_t i = 0; i < work_mat.rows(); ++i){
+        for (size_t j = 0; j < work_mat.cols(); ++j){
+            val((i*work_mat.cols())+j) += work_mat(i,j);
+            row((i*work_mat.cols())+j) = init_i+i;
+            col((i*work_mat.cols())+j) = init_j+j;
+        }
+    }
+} 
+
+template <typename Iterate>
+void fill_sp_GN(Iterate &It){
+    for (size_t i = 0; i < It.v_GN.size(); ++i){
+        if (It.v_GN(i) != 0){
+            It.GN.coeffRef(It.i_GN(i),It.j_GN(i)) += It.v_GN(i);   
+        }
+    }
+}
+
+void fill_sp(spmat &spA, rmat A){
+    for (size_t i = 0; i < A.rows(); ++i){
+        for (size_t j = 0; j < A.cols(); ++j){
+            if (A(i,j) != 0){
+                spA.coeffRef(i,j) = A(i,j);
+            }
+        }
+    }
+}
 
 auto eval_proj_set (const Box &box, crvec x) {
     using binary_real_f = real_t (*)(real_t, real_t);
@@ -273,24 +306,12 @@ void eval_GN_accelerator_fun (int k, Iterate &It, Problem &problem, crvec μ){
                         work_eval_Q);
         It.GN.block(nxu*k,nxu*k,nx,nx) += work_eval_Q;
     } 
-    else if (k_ == 0){
-        mat work_eval_Q(nxu,nxu);
-        work.leftCols(nxu) = It.Jfxu.block(k*nx,0,nx,nxu);
-        work.rightCols(nx).setIdentity();
-        work.rightCols(nx)*((μ).bottomRows(nx).asDiagonal());
-        problem.eval_add_Q(k, It.xu.segment(k*nxu,nxu), 
-                            It.hxu.segment(k*nxu,nxu),
-                            work_eval_Q);
-        It.GN.block(k*nxu,k*nxu,nxu,nxu) += work_eval_Q;
-        It.GN.block(k*nxu,k*nxu,nxu+nx,nxu+nx) += (work.transpose() * 
-                                        (μ).segment(k*nx,nx).asDiagonal()) *
-                                        (work);
-    }
     else {
         mat work_eval_Q(nxu,nxu);
         work.leftCols(nxu) = It.Jfxu.block(k*nx,0,nx,nxu);
         work.rightCols(nx).setIdentity();
-        work.rightCols(nx)*((μ).segment((k-1)*nx,nx).asDiagonal());
+        work.rightCols(nx) *= -1;
+        work.rightCols(nx)*((μ).segment((k)*nx,nx).asDiagonal());
         problem.eval_add_Q(k, It.xu.segment(k*nxu,nxu), 
                             It.hxu.segment(k*nxu,nxu),
                             work_eval_Q);
@@ -298,12 +319,64 @@ void eval_GN_accelerator_fun (int k, Iterate &It, Problem &problem, crvec μ){
         It.GN.block(k*nxu,k*nxu,nxu+nx,nxu+nx) += (work.transpose() * 
                                         (μ).segment(k*nx,nx).asDiagonal()) *
                                         (work);
+        if (k == 0){
+            It.GN.block(k*nxu,k*nxu,nx,nx) += μ.bottomRows(nx).asDiagonal();
+        }
+    }
+}
+
+template <typename Iterate, typename Problem>
+void eval_GN_accelerator_fun_v2 (int k, Iterate &It, Problem &problem, crvec μ){
+
+    auto nx = problem.get_nx();
+    auto nu = problem.get_nu();
+    auto nxu = problem.get_nx() + problem.get_nu(); 
+    auto N = problem.get_N() + 1;
+    auto lo = (2*nx+nu)*(2*nx+nu);
+
+    Eigen::Index k_ = k;
+
+    mat work (nx,nxu+nx);
+    mat work2 (nxu+nx,nxu+nx);
+
+    if (k_ == N-1){
+        mat work_eval_Q(nx,nx);
+        problem.eval_add_Q_N(It.xu.segment(k*nxu,nx),
+                        It.hxu.segment(k*nxu,nx), 
+                        work_eval_Q);
+        fill_vecs_GN(It.v_GN.segment(k*lo,(nx*nx)),
+                    It.i_GN.segment(k*lo,(nx*nx)),
+                    It.j_GN.segment(k*lo,(nx*nx)),
+                    work_eval_Q, k*nxu, k*nxu);
+    } 
+    else {
+        mat work_eval_Q(nxu,nxu);
+        work.leftCols(nxu) = It.Jfxu.block(k*nx,0,nx,nxu);
+        work.rightCols(nx).setIdentity();
+        if (k_ == 0){
+            work.rightCols(nx)*((μ).bottomRows(nx).asDiagonal());
+        }
+        else{
+            work.rightCols(nx)*((μ).segment((k-1)*nx,nx).asDiagonal());
+        }
+        work2 = (work.transpose() * (μ).segment(k*nx,nx).asDiagonal()) * (work);
+        problem.eval_add_Q(k, It.xu.segment(k*nxu,nxu), 
+                            It.hxu.segment(k*nxu,nxu),
+                            work_eval_Q);
+        fill_vecs_GN(It.v_GN.segment(k*lo,(nxu*nxu)),
+                    It.i_GN.segment(k*lo,(nxu*nxu)),
+                    It.j_GN.segment(k*lo,(nxu*nxu)),
+                    work_eval_Q, k*nxu, k*nxu);
+        fill_vecs_GN(It.v_GN.segment(k*lo,lo),
+                    It.i_GN.segment(k*lo,lo),
+                    It.j_GN.segment(k*lo,lo),
+                    work2, k*nxu, k*nxu);
     }
 }
 
 template <typename Iterate, typename Problem>
 void fd_grad_ψ_fun (Iterate &It, Problem &problem, crvec μ, crvec y, Box &F, real_t h){
-    alpaqa::ScopedMallocAllower ma;
+    // alpaqa::ScopedMallocAllower ma;
         
     real_t ψxu_     = 0;
     index_t N       = problem.get_N() + 1; 
@@ -357,9 +430,4 @@ void fd_grad_ψ_fun (Iterate &It, Problem &problem, crvec μ, crvec y, Box &F, r
         ψxu_ = lxu_.sum() + real_t(.5)*v.transpose()*(μ).asDiagonal()*v;
         It.grad_ψ(i) = (ψxu_ - It.ψxu)/h;
     }
-}
-
-
-void AD_grad_ψ_fun(){
-
 }

@@ -9,7 +9,8 @@
 #include <thesis/printing.hpp>
 #include <thesis/ocp-kkt-error.hpp>
 
-#include <nagumo_schlogl.hpp>
+// #include <multi-RTAC.hpp>
+#include <linear_dynamics.hpp>
 
 #include <iomanip>
 #include <iostream>
@@ -26,7 +27,7 @@ int main() {
     
     {
 
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<Nagumo>();
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<LinearOCPAD>();
 
     // Problem dimensions
     
@@ -61,12 +62,12 @@ int main() {
     //Inner:
     alpaqa::PANOCOCPParams<config_t> params;
     params.stop_crit = alpaqa::PANOCStopCrit::ProjGradUnitNorm2;
-    params.gn_interval = 0; //GN disabled
+    params.gn_interval = 1; //GN disabled
     params.print_interval = 0;
     params.max_iter = 5000;
     params.disable_acceleration = false;
-    params.linesearch_tolerance_factor = 1e-02;
-    params.quadratic_upperbound_tolerance_factor = 1e-01;
+    params.linesearch_tolerance_factor = 1e-04;
+    params.quadratic_upperbound_tolerance_factor = 1e-03;
     params.max_time = std::chrono::minutes(90);
     
     //Outer:
@@ -74,7 +75,6 @@ int main() {
     almparams.tolerance = 1e-5;
     almparams.max_iter = 300;
     almparams.print_interval = 1;
-    // almparams.initial_penalty = 1e6;
     almparams.max_time = std::chrono::minutes(60);
 
     // Solving
@@ -88,7 +88,7 @@ int main() {
     printing::kkt_error(kkt);
     printing::print_solution(problem, xu);
     index_t Ts = 1;
-    std::string problem_name = "Nagumo";
+    std::string problem_name = "MultiRTAC";
 
     //SS:
     params.max_iter = 10000;
@@ -100,9 +100,9 @@ int main() {
     printing::print_stats_outer(stats_ss);
     printing::print_solution_ss(problem, u);
     
-    Nagumo hg;
-    auto kkt_ss = alpaqa::compute_kkt_error(problem, u, hg.Q, hg.R);
-    printing::kkt_error(kkt_ss);
+    // MultiRTAC hg;
+    // auto kkt_ss = alpaqa::compute_kkt_error(problem, u, hg.Q, hg.R);
+    // printing::kkt_error(kkt_ss);
 
     }
 

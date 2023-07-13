@@ -1,13 +1,13 @@
-add_executable(tests_ss_vs_ms #example!!
-    "tests_ss_vs_ms.cpp" #example!!
+add_executable(tests #example!!
+    "tests.cpp" #example!!
 )
 
 find_package(alpaqa REQUIRED)
 find_package(Kokkos REQUIRED)
 find_package(Sacado REQUIRED)
 
-target_link_libraries(tests_ss_vs_ms PUBLIC thesis PRIVATE thesis::warnings)
-target_link_libraries(tests_ss_vs_ms PUBLIC problems PRIVATE problems::warnings)
-target_link_libraries(tests_ss_vs_ms PUBLIC alpaqa::alpaqa alpaqa::warnings)
-target_link_libraries(tests_ss_vs_ms PUBLIC Kokkos::kokkos)
-target_link_libraries(tests_ss_vs_ms PUBLIC Sacado::sacado)
+target_link_libraries(tests PUBLIC thesis PRIVATE thesis::warnings)
+target_link_libraries(tests PUBLIC problems PRIVATE problems::warnings)
+target_link_libraries(tests PUBLIC alpaqa::alpaqa alpaqa::warnings)
+target_link_libraries(tests PUBLIC Kokkos::kokkos)
+target_link_libraries(tests PUBLIC Sacado::sacado)

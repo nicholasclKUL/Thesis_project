@@ -141,7 +141,6 @@ auto ParaPANOCSolver<Conf>::operator()(
         vec lxu;        //< cost function at iterate -> l(x,u)
         vec lxû;        //< cost function after T(x,u) -> l(x,û)
         mat Jfxu;       //< Jacobian of dynamics Jf(x,u)
-        mat GN;         //< GN approximation of ∇²ψ
         vec qr;         //< Cost function gradient Jh(x,u)dl(x,u)
         vec g;          //< Dynamic constraints, f(x,u) - x+
         vec gz;         //< g(x) + Σ⁻¹y
@@ -150,6 +149,12 @@ auto ParaPANOCSolver<Conf>::operator()(
         vec Π_D_hat;    //< Projection of states and variables into their box constraints
         vec Z;          //< (Σ*(f(xₖ,uₖ)-xₖ₊₁-Π_D(f(xₖ,uₖ)-xₖ₊₁+Σ⁻¹y))-y)
         vec p;          //< Proximal gradient step
+        vec v_GN;
+        vec i_GN;
+        vec j_GN;
+
+        spmat spGN;         //< GN approximation of ∇²ψ
+        mat GN;
         
         real_t ψxu      = alpaqa::NaN<config_t>;        //< Cost in x
         real_t ψxû      = alpaqa::NaN<config_t>;        //< Cost in x̂
@@ -165,7 +170,13 @@ auto ParaPANOCSolver<Conf>::operator()(
         Iterate(length_t n, length_t m, length_t nx, length_t nu, length_t N) :
             xu(n), xû(n), grad_ψ(n), fxu(m-nx), fxû(m-nx), hxu(n), hxû(n), 
             qr(n), g(m), gz(m), gz_hat(m), Π_D(m), Π_D_hat(m), Z(m), p(n), 
-            Jfxu(m-nx, nx+nu), GN(n,n), lxu(N), lxû(N) {}
+            Jfxu(m-nx, nx+nu), spGN(n,n), GN(n,n), v_GN((2*nx+nu)*(2*nx+nu)*N), lxu(N),
+            i_GN((2*nx+nu)*(2*nx+nu)*N), j_GN((2*nx+nu)*(2*nx+nu)*N), lxû(N) 
+            {
+                v_GN.setZero();
+                i_GN.setZero();
+                j_GN.setZero(); 
+                                }
 
     } iterates[2]{{n, m, nx, nu, N}, {n, m, nx, nu, N}}; 
 
@@ -503,14 +514,23 @@ auto ParaPANOCSolver<Conf>::operator()(
         real_t τ_init = NaN<config_t>;
 
         // Calculate Gauss-Newton step -----------------------------------------
- 
+
         if (enable_gn == true){
+            curr->v_GN.setZero();
+            curr->i_GN.setZero();
+            curr->j_GN.setZero();
             curr->GN.setZero();
+            curr->spGN.setZero();
+            Eigen::SparseLU<spmat> sp_lu;
             Kokkos::parallel_for("GN_hessian", nthrds, [&](const int i){
                 eval_GN_accelerator(i, *curr, μ);
             });
             Kokkos::fence();
-            q = - curr->GN.inverse()*curr->grad_ψ;
+            fill_sp(curr->spGN,curr->GN);
+            // std::cout<<curr->GN<<std::endl;
+            sp_lu.analyzePattern(curr->spGN);
+            sp_lu.factorize(curr->spGN);
+            q = - sp_lu.solve(curr->grad_ψ);
             τ_init = 1;
             k_gn = k + params.gn_interval;
         }
@@ -641,6 +661,8 @@ auto ParaPANOCSolver<Conf>::operator()(
         // Check whether we used gn step in this PANOC step
         (enable_gn == true) ? did_gn = true : did_gn = false;
 
+        ++k;         
+
         // Check if the solver should use GN step in the next step
         ((τ == 1) && (enable_gn == true)) || 
         ((k == k_gn) && (enable_gn_global == true)) ? 
@@ -656,7 +678,6 @@ auto ParaPANOCSolver<Conf>::operator()(
 
         // Advance step --------------------------------------------------------
         std::swap(curr, next);
-        ++k; 
         xu = curr->xu;
         g = curr->g;
     }

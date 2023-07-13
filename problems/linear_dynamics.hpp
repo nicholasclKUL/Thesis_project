@@ -25,7 +25,7 @@ struct LinearOCP {
     LinearOCP() : A(nx, nx), B(nx, nu) {
         A.setIdentity();
         B.setOnes();
-        A *= 2;
+        A *= -2;
     }
 
     [[nodiscard]] length_t get_N() const { return N; }
@@ -224,7 +224,7 @@ struct LinearOCPAD {
 
     LinearOCPAD() : A(params.nx, params.nx), B(params.nx, params.nu) {
         A.setIdentity();
-        B.setIdentity();
+        B.setOnes();
         A *= -2;
 
         params.A = A; params.B = B;

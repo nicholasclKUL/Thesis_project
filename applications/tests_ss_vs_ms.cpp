@@ -22,7 +22,7 @@ void progress_callback(const alpaqa::PANOCOCPProgressInfo<config_t>& info){
 
 int main() {
 
-const int np = 4; 
+const int np = 16; 
 
     Kokkos::initialize(Kokkos::InitializationSettings().set_num_threads(np));
     
@@ -76,7 +76,6 @@ const int np = 4;
     almparams.tolerance = 1e-5;
     almparams.max_iter = 300;
     almparams.print_interval = 1;
-    // almparams.initial_penalty = 1e6;
     almparams.max_time = std::chrono::minutes(60);
 
     // Solving

@@ -6,6 +6,7 @@
             "command": "/usr/bin/g++",
             "args": [
                 "-fdiagnostics-color=always",
+                "-finput-charset=UTF-8",
                 "-g",
                 "${file}",
                 "-o",

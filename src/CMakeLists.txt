@@ -10,12 +10,14 @@ add_library(thesis
 "include/thesis/para-panoc-helpers.hpp"
 "include/thesis/auto-diff-sacado-helpers.hpp"
 "include/thesis/ocp-kkt-error.hpp"
+# "include/thesis/sparse-linear-solver.hpp"
 )
 
 target_link_libraries(thesis PRIVATE Kokkos::kokkos)
 target_link_libraries(thesis PRIVATE Eigen3::Eigen)
 target_link_libraries(thesis PRIVATE alpaqa::alpaqa)
 target_link_libraries(thesis PRIVATE Sacado::sacado)
+target_link_libraries(thesis PRIVATE MPI::MPI_CXX)
 
 target_link_libraries(thesis PRIVATE thesis::warnings)
 target_include_directories(thesis PUBLIC

@@ -192,17 +192,21 @@ unsigned long int n_seed = 1;
       q             = Jh_x.transpose() * grad_l;
   }
 
-  void eval_add_Q([[maybe_unused]] index_t timestep,
-                  [[maybe_unused]] crvec xu,
+  void eval_add_Q([[maybe_unused]] index_t timestep, 
+                  [[maybe_unused]] crvec xu, 
                   [[maybe_unused]] crvec h, rmat Q) const {
       alpaqa::ScopedMallocAllower ma;
-      Q += mat::Identity(params.nx, params.nx);
+      auto Jh_xu    = mat::Identity(params.nx + params.nu, params.nx + params.nu);
+      Q.noalias()   = Jh_xu.transpose() * Jh_xu;
+      // Q += mat::Identity(nx,nx);
   }
-
+  
   void eval_add_Q_N([[maybe_unused]] crvec x,
                     [[maybe_unused]] crvec h, rmat Q) const {
       alpaqa::ScopedMallocAllower ma;
-      Q += 10 * mat::Identity(params.nx, params.nx);
+      auto Jh_x     = mat::Identity(params.nx, params.nx);
+      Q.noalias()   = 10 * (Jh_x.transpose() * Jh_x);
+      // Q += 10 * mat::Identity(nx,nx);
   }
 
   void eval_add_R_masked([[maybe_unused]] index_t timestep,
