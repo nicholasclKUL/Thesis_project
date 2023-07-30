@@ -179,7 +179,7 @@ void print_stats_outer (Stats_outer_ms stats){
 template <typename P>
 void print_stats_outer (Stats_outer_ms stats, P &problem, std::string &problem_name, const int n_thrds){
     // create file name
-    std::string filename = "stats_" + problem_name + "_ms.csv";
+    std::string filename = "stats_" + problem_name + "__ms.csv";
     if (std::filesystem::exists(filename)){
         // open file
         std::ofstream myfile(filename, std::ios::app);
@@ -195,7 +195,8 @@ void print_stats_outer (Stats_outer_ms stats, P &problem, std::string &problem_n
                 << (stats.inner.sum_τ / stats.inner.count_τ) << ","
                 << stats.inner.lbfgs_rejected << ","
                 << stats.inner.lbfgs_failures << ","
-                << stats.inner.linesearch_failures << ",";
+                << stats.inner.linesearch_failures << ","
+                << stats.norm_penalty << ",";
         myfile << std::endl;   
         // close file
         myfile.close();
@@ -204,7 +205,7 @@ void print_stats_outer (Stats_outer_ms stats, P &problem, std::string &problem_n
         // open file
         std::ofstream myfile(filename);
         // fill in header
-        myfile << "number_of_threads,horizon,number_of_states,status,inner_iterations,outer_iterations,ε,δ,elapsed_time,avg τ,L_BFGS_rejected,L_BFGS_failures,Line_search_failures," << '\n';
+        myfile << "number_of_threads,horizon,number_of_states,status,inner_iterations,outer_iterations,ε,δ,elapsed_time,avg τ,L_BFGS_rejected,L_BFGS_failures,Line_search_failures,norm_penalty" << '\n';
         // fill in data
         myfile  << n_thrds << ","
                 << problem.get_N() << ","
@@ -245,7 +246,7 @@ void print_stats_outer (Stats_outer_ss stats){
 template <typename P>
 void print_stats_outer (Stats_outer_ss stats, P &problem, std::string &problem_name, const int n_thrds){
     // create file name
-    std::string filename = "stats_" + problem_name + "_ss.csv";
+    std::string filename = "stats_" + problem_name + "__ss.csv";
     if (std::filesystem::exists(filename)){
         // open file
         std::ofstream myfile(filename, std::ios::app);

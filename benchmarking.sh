@@ -46,7 +46,7 @@ do
     done
 
     src_dir="${HOME}/Thesis_project/build/applications/"
-    dest_dir="${HOME}/Thesis_project/benchmarking_time/$p"
+    dest_dir="${HOME}/Thesis_project/benchmarking_time_GN/$p"
     mkdir -p "$dest_dir"
 
     find "$src_dir" -type f -name 'nicholas-Inspiron-5567*' -print0 | while read -d '' file

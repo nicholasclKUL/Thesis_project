@@ -10,7 +10,7 @@
 #include <thesis/ocp-kkt-error.hpp>
 
 // #include <multi-RTAC.hpp>
-#include <linear_dynamics.hpp>
+#include <nonlinear_dynamics.hpp>
 
 #include <iomanip>
 #include <iostream>
@@ -27,7 +27,7 @@ int main() {
     
     {
 
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<LinearOCPAD>();
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<NonlinearOCP1b>();
 
     // Problem dimensions
     
@@ -66,8 +66,8 @@ int main() {
     params.print_interval = 0;
     params.max_iter = 5000;
     params.disable_acceleration = false;
-    params.linesearch_tolerance_factor = 1e-04;
-    params.quadratic_upperbound_tolerance_factor = 1e-03;
+    params.linesearch_tolerance_factor = 1e-02;
+    params.quadratic_upperbound_tolerance_factor = 1e-01;
     params.max_time = std::chrono::minutes(90);
     
     //Outer:

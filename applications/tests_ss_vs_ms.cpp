@@ -65,10 +65,10 @@ const int np = 16;
     params.stop_crit = alpaqa::PANOCStopCrit::ProjGradUnitNorm2;
     params.gn_interval = 0; //GN disabled
     params.print_interval = 0;
-    params.max_iter = 5000;
+    params.max_iter = 10000;
     params.disable_acceleration = false;
-    params.linesearch_tolerance_factor = 1e-02;
-    params.quadratic_upperbound_tolerance_factor = 1e-01;
+    params.linesearch_tolerance_factor = 1e-04;
+    params.quadratic_upperbound_tolerance_factor = 1e-03;
     params.max_time = std::chrono::minutes(90);
     
     //Outer:
@@ -85,8 +85,9 @@ const int np = 16;
     auto stats_ms = almsolver_ms(problem, xu, y_ms, ϵ, nt);
     index_t sim_index = 1;
     std::string problem_name = "MultiRTAC";
-    // printing::print_solution(problem, problem_name, xu, np, sim_index);
+    printing::print_solution(problem, xu);
     printing::print_stats_outer(stats_ms, problem, problem_name, np);
+    printing::print_stats_outer(stats_ms);
 
     //SS:
     params.max_iter = 10000;
@@ -96,6 +97,7 @@ const int np = 16;
     auto stats_ss = almsolver_ss(problem, u, y);
     printing::print_stats_outer(stats_ss, problem, problem_name, np);
     // printing::print_solution_ss(problem, problem_name, u, sim_index);
+    printing::print_stats_outer(stats_ss);
 
     }
 

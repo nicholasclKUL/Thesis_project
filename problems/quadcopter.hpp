@@ -61,13 +61,13 @@ struct Quadcopter{
   [[nodiscard]] length_t get_nc_N() const { return nc_N; }
 
   void get_U(Box &U) const {
-    U.lowerbound.setConstant(-alpaqa::inf<config_t>);
-    U.upperbound.setConstant(+alpaqa::inf<config_t>);
+    U.lowerbound.setConstant(-1);
+    U.upperbound.setConstant(+1);
   }
 
   void get_D(Box &D) const {    
-    D.lowerbound.setConstant(-alpaqa::inf<config_t>);
-    D.upperbound.setConstant(+alpaqa::inf<config_t>);
+    D.lowerbound.setConstant(-1);
+    D.upperbound.setConstant(+1);
   }
 
   void get_D_N(Box &D) const {}
@@ -368,24 +368,23 @@ using AD_obj = AD<p_nx+p_nu,p_nx,p_nh>;
 
 // Create the Control Problem object to pass on to the Solver
 struct QuadcopterAD{
-
   using Box = alpaqa::Box<config_t>;
 
   struct Params{
-    length_t  T = 1.;                     ///< Time horizon (s) 
+    real_t  T = 0.5;                    ///< Time horizon (s) 
 
     // OCP parameters:
-    length_t  N = p_N,                   ///< Total horizon length
-            nu = p_nu,                     ///< Number of inputs
+    length_t  N = p_N,                    ///< Total horizon length
+            nu = p_nu,                    ///< Number of inputs
             nx = p_nx,                    ///< Number of states  
-            nh = p_nh,               ///< Number of stage outputs
+            nh = p_nh,                    ///< Number of stage outputs
           nh_N = p_nx,                    ///< Number of terminal outputs
-            nc = 0,                     ///< Number of stage constraints
-          nc_N = 0,                     ///< Number of terminal constraints
-              n = ((nx + nu) * N) - nu;  ///< Total number of decision variables 
+            nc = 0,                       ///< Number of stage constraints
+          nc_N = 0,                       ///< Number of terminal constraints
+              n = ((nx + nu) * N) - nu;   ///< Total number of decision variables 
 
     // Dynamics and discretization parameters:
-    real_t Ts = real_t(T)/real_t(N),     ///< Discretization step length
+    real_t Ts = real_t(T)/real_t(N),      ///< Discretization step length
           g  = 9.81,                     
           M  = 0.65,                 
           I  = 0.23,
@@ -427,13 +426,15 @@ unsigned long int n_seed = 1;
   [[nodiscard]] length_t get_nc_N() const { return params.nc_N; }
 
   void get_U(Box &U) const {
-    U.lowerbound.setConstant(-1);
-    U.upperbound.setConstant(+1);
+    U.lowerbound.setConstant(-50);
+    U.upperbound.setConstant(+50);
   }
 
   void get_D(Box &D) const {    
     D.lowerbound.setConstant(-alpaqa::inf<config_t>);
     D.upperbound.setConstant(+alpaqa::inf<config_t>);
+    D.lowerbound(6) = 0.1;
+    D.lowerbound(10) = 0.1;
   }
 
   void get_D_N(Box &D) const {}
@@ -443,7 +444,7 @@ unsigned long int n_seed = 1;
     if (x_init.size() <= params.nu*params.N){
       x_init.setConstant(0.0);
       x_init(6) = 0.3;
-      x_init(8) = 0.17;
+      x_init(8) = -0.4;
       x_init(10) = 0.2;
     }
     // Multiple-Shooting
@@ -467,30 +468,30 @@ unsigned long int n_seed = 1;
     }
   }
 
-  void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const { 
+  void eval_f([[maybe_unused]] index_t timestep, crvec x, crvec u, rvec fxu) const {
     alpaqa::ScopedMallocAllower ma;
     vec xu(params.nx+params.nu); xu << x, u;
-    // fe(timestep, xu, fxu, params);
+    //fe(timestep, xu, fxu, params);
     rk4(timestep, xu, fxu, params);
-  } 
-  void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
+  }
+  void eval_jac_f([[maybe_unused]] index_t timestep, [[maybe_unused]] crvec x, [[maybe_unused]] crvec u, rmat Jfxu) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    //fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
     rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx>(Jfxu, ad_obj[timestep]);
   }
 
-  void eval_grad_f_prod(index_t timestep, crvec x, crvec u, crvec p,
+  void eval_grad_f_prod([[maybe_unused]] index_t timestep, [[maybe_unused]] crvec x, [[maybe_unused]] crvec u, crvec p,
                         rvec grad_fxu_p) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    //fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
     rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx> (grad_fxu_p, p, ad_obj[timestep]);
   }
 
-  void eval_h([[maybe_unused]] index_t timestep, crvec x, crvec u, rvec h) const {        
+  void eval_h([[maybe_unused]] index_t timestep, crvec x, crvec u, rvec h) const {
     alpaqa::ScopedMallocAllower ma;
     h.topRows(params.nx)    = x;
     h.bottomRows(params.nu) = u;
@@ -498,17 +499,17 @@ unsigned long int n_seed = 1;
 
   void eval_h_N(crvec x, rvec h) const { h = x; }
 
-  [[nodiscard]] real_t eval_l([[maybe_unused]] index_t timestep, crvec h) const {      
+  [[nodiscard]] real_t eval_l([[maybe_unused]] index_t timestep, crvec h) const {
     alpaqa::ScopedMallocAllower ma;
     return h.transpose() * QR.asDiagonal() * h;
   }
 
-  [[nodiscard]] real_t eval_l_N(crvec h) const {      
+  [[nodiscard]] real_t eval_l_N(crvec h) const {
     alpaqa::ScopedMallocAllower ma;
     return 5 * h.transpose() * Q.asDiagonal() * h;
   }
 
-  void eval_qr([[maybe_unused]] index_t timestep, 
+  void eval_qr([[maybe_unused]] index_t timestep,
               [[maybe_unused]] crvec xu, crvec h, rvec qr) const {
     alpaqa::ScopedMallocAllower ma;
     auto Jh_xu    = mat::Identity(params.nx + params.nu, params.nx + params.nu);
@@ -526,44 +527,44 @@ unsigned long int n_seed = 1;
   void eval_add_Q([[maybe_unused]] index_t timestep, 
                   [[maybe_unused]] crvec xu, 
                   [[maybe_unused]] crvec h, rmat Q) const {
-      alpaqa::ScopedMallocAllower ma;
-      auto Jh_xu    = mat::Identity(params.nx + params.nu, params.nx + params.nu);
-      Q.noalias()   = Jh_xu.transpose() * Jh_xu;
-      // Q += mat::Identity(nx,nx);
+      // alpaqa::ScopedMallocAllower ma;
+      // auto Jh_xu    = mat::Identity(params.nx + params.nu, params.nx + params.nu);
+      // Q.noalias()   = Jh_xu.transpose() * Jh_xu;
+      Q += mat::Identity(params.nx,params.nx);
   }
   
   void eval_add_Q_N([[maybe_unused]] crvec x,
                     [[maybe_unused]] crvec h, rmat Q) const {
-      alpaqa::ScopedMallocAllower ma;
-      auto Jh_x     = mat::Identity(params.nx, params.nx);
-      Q.noalias()   = 10 * (Jh_x.transpose() * Jh_x);
-      // Q += 10 * mat::Identity(nx,nx);
+      // alpaqa::ScopedMallocAllower ma;
+      // auto Jh_x     = mat::Identity(params.nx, params.nx);
+      // Q.noalias()   = 10 * (Jh_x.transpose() * Jh_x);
+      Q += 10 * mat::Identity(params.nx,params.nx);
   }
 
   void eval_add_R_masked([[maybe_unused]] index_t timestep,
-                        [[maybe_unused]] crvec xu, 
+                        [[maybe_unused]] crvec xu,
                         [[maybe_unused]] crvec h, crindexvec mask,
-                        rmat R, 
+                        rmat R,
                         [[maybe_unused]] rvec work) const {
       alpaqa::ScopedMallocAllower ma;
       const auto n = mask.size();
       R.noalias() += mat::Identity(params.n, params.n);
   }
 
-  void eval_add_S_masked([[maybe_unused]] index_t timestep, 
-                        [[maybe_unused]] crvec xu, 
+  void eval_add_S_masked([[maybe_unused]] index_t timestep,
+                        [[maybe_unused]] crvec xu,
                         [[maybe_unused]] crvec h, crindexvec mask,
-                        rmat S, 
+                        rmat S,
                         [[maybe_unused]] rvec work) const {
       // Mixed derivatives are zero
       // S.noalias() += (...);
   }
 
   void eval_add_R_prod_masked([[maybe_unused]] index_t timestep,
-                              [[maybe_unused]] crvec xu, 
+                              [[maybe_unused]] crvec xu,
                               [[maybe_unused]] crvec h,
                               crindexvec mask_J, crindexvec mask_K, crvec v,
-                              rvec out, 
+                              rvec out,
                               [[maybe_unused]] rvec work) const {
       // The following has no effect because R is diagonal, and J ∩ K = ∅
       alpaqa::ScopedMallocAllower ma;
@@ -572,10 +573,10 @@ unsigned long int n_seed = 1;
   }
 
   void eval_add_S_prod_masked([[maybe_unused]] index_t timestep,
-                              [[maybe_unused]] crvec xu, 
+                              [[maybe_unused]] crvec xu,
                               [[maybe_unused]] crvec h,
-                              [[maybe_unused]] crindexvec mask_K, 
-                              [[maybe_unused]] crvec v, 
+                              [[maybe_unused]] crindexvec mask_K,
+                              [[maybe_unused]] crvec v,
                               [[maybe_unused]] rvec out,
                               [[maybe_unused]] rvec work) const {
       // Mixed derivatives are zero
@@ -589,13 +590,13 @@ unsigned long int n_seed = 1;
       // eval_add_R_prod_masked
       return 0;
   }
-  
+
   [[nodiscard]] length_t get_S_work_size() const { return 0; }
 
-  void eval_proj_multipliers([[maybe_unused]] rvec y, 
+  void eval_proj_multipliers([[maybe_unused]] rvec y,
                             [[maybe_unused]] real_t M) const {}
 
-  void eval_proj_diff_g([[maybe_unused]] crvec z, 
+  void eval_proj_diff_g([[maybe_unused]] crvec z,
                         [[maybe_unused]] rvec p) const { p.setZero(); }
 
   void check() const {

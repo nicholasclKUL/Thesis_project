@@ -19,7 +19,7 @@ set(CMAKE_IMPORT_FILE_VERSION 1)
 set(_cmake_targets_defined "")
 set(_cmake_targets_not_defined "")
 set(_cmake_expected_targets "")
-foreach(_cmake_expected_target IN ITEMS alpaqa::alpaqa alpaqa::casadi-loader alpaqa::casadi-ocp-loader alpaqa::dl-api alpaqa::dl-loader alpaqa::lbfgsb-fortran alpaqa::lbfgsb-adapter alpaqa::warnings alpaqa::driver)
+foreach(_cmake_expected_target IN ITEMS alpaqa::alpaqa alpaqa::casadi-loader alpaqa::casadi-ocp-loader alpaqa::dl-api alpaqa::dl-loader alpaqa::ipopt-adapter alpaqa::lbfgsb-fortran alpaqa::lbfgsb-adapter alpaqa::warnings)
   list(APPEND _cmake_expected_targets "${_cmake_expected_target}")
   if(TARGET "${_cmake_expected_target}")
     list(APPEND _cmake_targets_defined "${_cmake_expected_target}")
@@ -95,6 +95,14 @@ set_target_properties(alpaqa::dl-loader PROPERTIES
   INTERFACE_LINK_LIBRARIES "alpaqa::alpaqa;alpaqa::dl-api;\$<LINK_ONLY:dl>;\$<LINK_ONLY:alpaqa::warnings>"
 )
 
+# Create imported target alpaqa::ipopt-adapter
+add_library(alpaqa::ipopt-adapter STATIC IMPORTED)
+
+set_target_properties(alpaqa::ipopt-adapter PROPERTIES
+  INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"
+  INTERFACE_LINK_LIBRARIES "COIN::Ipopt;alpaqa::alpaqa;\$<LINK_ONLY:alpaqa::warnings>"
+)
+
 # Create imported target alpaqa::lbfgsb-fortran
 add_library(alpaqa::lbfgsb-fortran STATIC IMPORTED)
 
@@ -111,13 +119,6 @@ add_library(alpaqa::warnings INTERFACE IMPORTED)
 
 set_target_properties(alpaqa::warnings PROPERTIES
   INTERFACE_COMPILE_OPTIONS "\$<\$<COMPILE_LANGUAGE:C>:>;\$<\$<COMPILE_LANGUAGE:CXX>:>;\$<\$<COMPILE_LANGUAGE:Fortran>:>"
-)
-
-# Create imported target alpaqa::driver
-add_executable(alpaqa::driver IMPORTED)
-
-set_target_properties(alpaqa::driver PROPERTIES
-  INTERFACE_COMPILE_DEFINITIONS "ALPAQA_HAVE_CASADI;WITH_LBFGSB"
 )
 
 if(CMAKE_VERSION VERSION_LESS 3.0.0)

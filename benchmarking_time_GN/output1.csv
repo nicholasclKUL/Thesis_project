@@ -1,0 +1,6 @@
+NonlinearOCP1b,1601.68936 seconds,1528.21561 seconds,1470.36404 seconds, 947.46507 seconds,1237.67930 seconds,1684.15521 seconds,1626.68300 seconds,1572.75548 seconds,1490.64387 seconds,1352.16162 seconds,
+QuadcopterAD,4403.76339 seconds,1607.04198 seconds,1608.35208 seconds,1608.06091 seconds,1603.91410 seconds,1611.45041 seconds,1616.14905 seconds,1616.97607 seconds,1614.57951 seconds,1614.68829 seconds,
+QuadcopterFull,1260.40376 seconds,1200.57654 seconds,1224.01842 seconds,1224.78066 seconds,1260.89581 seconds,1307.88772 seconds,1234.96555 seconds,1092.24806 seconds,1177.03667 seconds,1298.84029 seconds,
+HangingChain,2062.42499 seconds,2065.39320 seconds,2068.01789 seconds,2066.04299 seconds,2062.68314 seconds,2070.83196 seconds,2075.59680 seconds,2063.90619 seconds,2069.92635 seconds,2072.69717 seconds,
+MultiRTAC,  46.65035 seconds,  43.23070 seconds,  45.88452 seconds,  41.61470 seconds,  44.89531 seconds,  41.94591 seconds,  45.05737 seconds,  41.57570 seconds,  44.20757 seconds,  40.43897 seconds,
+Nagumo, 502.35173 seconds, 509.10830 seconds, 494.71673 seconds, 570.67746 seconds, 507.85044 seconds, 501.23066 seconds, 520.70123 seconds, 649.30887 seconds, 518.52241 seconds, 665.68077 seconds,

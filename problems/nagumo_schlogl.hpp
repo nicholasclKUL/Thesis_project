@@ -165,14 +165,14 @@ unsigned long int n_seed = 1;
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const { 
     alpaqa::ScopedMallocAllower ma;
     vec xu(params.nx+params.nu); xu << x, u;
-    // fe(timestep, xu, fxu, params);
-    rk4(timestep, xu, fxu, params);
+    fe(timestep, xu, fxu, params);
+    // rk4(timestep, xu, fxu, params);
   } 
   void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
-    rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
+    fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx>(Jfxu, ad_obj[timestep]);
   }
 
@@ -180,8 +180,8 @@ unsigned long int n_seed = 1;
                         rvec grad_fxu_p) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
-    rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
+    fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx> (grad_fxu_p, p, ad_obj[timestep]);
   }
 

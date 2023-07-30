@@ -1,0 +1,4 @@
+number_of_threads,horizon,number_of_states,status,inner_iterations,outer_iterations,ε,δ,elapsed_time,avg τ,L_BFGS_rejected,L_BFGS_failures,Line_search_failures,norm_penalty
+16,8,12,Converged,1425,34,5.11588e-06,1.54531e-06,1.29154,0.955186,0,0,4,
+16,16,12,Converged,3246,58,9.76731e-06,6.19043e-06,5.35864,0.972875,0,0,4,2.30023e+07,
+16,32,12,Converged,7274,110,8.99056e-06,3.5029e-06,19.5696,0.98012,0,0,4,3.60253e+07,

@@ -13,7 +13,7 @@
 #include <thesis/para-panoc.hpp>
 #include <thesis/printing.hpp>
 
-#include <hanging_chain.hpp>
+#include <nonlinear_dynamics.hpp>
 
 #include <iomanip>
 #include <iostream>
@@ -23,14 +23,14 @@
 
 int main() {
 
-    Kokkos::initialize(Kokkos::InitializationSettings().set_num_threads(16));
+    Kokkos::initialize(Kokkos::InitializationSettings().set_num_threads(1));
 
     {
 
     USING_ALPAQA_CONFIG(alpaqa::DefaultConfig);
 
     // Create Problem
-    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<HangingChain>();
+    auto problem = alpaqa::TypeErasedControlProblem<config_t>::make<NonlinearOCP1b>();
 
     // Problem dimensions
     const auto n_ms = (problem.get_nx()+problem.get_nu())*(problem.get_N())+problem.get_nx(),
@@ -49,13 +49,13 @@ int main() {
     // Inner:
     alpaqa::PANOCOCPParams<config_t> params;
     params.stop_crit = alpaqa::PANOCStopCrit::ProjGradUnitNorm2;
-    params.gn_interval = 0;
+    params.gn_interval = 1;
     params.print_interval = 0;
-    params.max_iter = 5000;
+    params.max_iter = 500;
     params.disable_acceleration = false;
     params.linesearch_tolerance_factor = 1e-02;
     params.quadratic_upperbound_tolerance_factor = 1e-01;
-    params.max_time = std::chrono::minutes(30);
+    params.max_time = std::chrono::minutes(10);
     // Outer:
     alpaqa::ALMParams almparams; 
     almparams.max_time = std::chrono::minutes(60);

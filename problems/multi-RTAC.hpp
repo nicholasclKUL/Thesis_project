@@ -43,8 +43,8 @@ void dynamics(index_t &k, X &xu, J &fxu, const Params &params){
 };
 
 // Horizon length, number of states and input for compile time allocation of AD views
-const int p_N = 16,
-p_Nc = 2,
+const int p_N = 8,
+          p_Nc = 3,
           p_nx = 4*p_Nc,
           p_nu = p_Nc,
           p_nh = p_nx + p_nu;
@@ -87,7 +87,7 @@ struct MultiRTAC{
 
   Params params;
 
-unsigned long int n_seed = 1;
+unsigned long int n_seed = 11;
 
   // QR matrix diagonal:
   vec Q, R, QR;
@@ -110,8 +110,8 @@ unsigned long int n_seed = 1;
   [[nodiscard]] length_t get_nc_N() const { return params.nc_N; }
 
   void get_U(Box &U) const {
-    U.lowerbound.setConstant(-alpaqa::inf<config_t>);
-    U.upperbound.setConstant(+alpaqa::inf<config_t>);
+    U.lowerbound.setConstant(-1);
+    U.upperbound.setConstant(+1);
   }
 
   void get_D(Box &D) const {
@@ -136,25 +136,25 @@ unsigned long int n_seed = 1;
 
   }
 
-  void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const {
+  void eval_f([[maybe_unused]] index_t timestep, crvec x, crvec u, rvec fxu) const {
     alpaqa::ScopedMallocAllower ma;
     vec xu(params.nx+params.nu); xu << x, u;
-    // fe(timestep, xu, fxu, params);
+    //fe(timestep, xu, fxu, params);
     rk4(timestep, xu, fxu, params);
   }
-  void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
+  void eval_jac_f([[maybe_unused]] index_t timestep, [[maybe_unused]] crvec x, [[maybe_unused]] crvec u, rmat Jfxu) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    //fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
     rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx>(Jfxu, ad_obj[timestep]);
   }
 
-  void eval_grad_f_prod(index_t timestep, crvec x, crvec u, crvec p,
+  void eval_grad_f_prod([[maybe_unused]] index_t timestep, [[maybe_unused]] crvec x, [[maybe_unused]] crvec u, crvec p,
                         rvec grad_fxu_p) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    //fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
     rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx> (grad_fxu_p, p, ad_obj[timestep]);
   }
@@ -195,18 +195,18 @@ unsigned long int n_seed = 1;
   void eval_add_Q([[maybe_unused]] index_t timestep, 
                   [[maybe_unused]] crvec xu, 
                   [[maybe_unused]] crvec h, rmat Q) const {
-      alpaqa::ScopedMallocAllower ma;
-      auto Jh_xu    = mat::Identity(params.nx + params.nu, params.nx + params.nu);
-      Q.noalias()   = Jh_xu.transpose() * Jh_xu;
-      // Q += mat::Identity(nx,nx);
+      // alpaqa::ScopedMallocAllower ma;
+      // auto Jh_xu    = mat::Identity(params.nx + params.nu, params.nx + params.nu);
+      // Q.noalias()   = Jh_xu.transpose() * Jh_xu;
+      Q += mat::Identity(params.nx,params.nx);
   }
   
   void eval_add_Q_N([[maybe_unused]] crvec x,
                     [[maybe_unused]] crvec h, rmat Q) const {
-      alpaqa::ScopedMallocAllower ma;
-      auto Jh_x     = mat::Identity(params.nx, params.nx);
-      Q.noalias()   = 10 * (Jh_x.transpose() * Jh_x);
-      // Q += 10 * mat::Identity(nx,nx);
+      // alpaqa::ScopedMallocAllower ma;
+      // auto Jh_x     = mat::Identity(params.nx, params.nx);
+      // Q.noalias()   = 10 * (Jh_x.transpose() * Jh_x);
+      Q += 10 * mat::Identity(params.nx,params.nx);
   }
 
   void eval_add_R_masked([[maybe_unused]] index_t timestep,

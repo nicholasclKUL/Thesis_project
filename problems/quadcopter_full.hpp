@@ -55,10 +55,10 @@ struct QuadcopterFull{
   using Box = alpaqa::Box<config_t>;
 
   struct Params{
-    length_t  T = .5;                     ///< Time horizon (s) 
+    real_t  T = .5;                     ///< Time horizon (s) 
 
     // OCP parameters:
-    length_t  N = p_N,                   ///< Total horizon length
+    length_t  N = p_N,                   ///< Total horizon length 0.0018
             nu = p_nu,                     ///< Number of inputs
             nx = p_nx,                    ///< Number of states  
             nh = p_nh,               ///< Number of stage outputs
@@ -125,6 +125,8 @@ unsigned long int n_seed = 1;
   void get_D(Box &D) const {    
     D.lowerbound.setConstant(-alpaqa::inf<config_t>);
     D.upperbound.setConstant(+alpaqa::inf<config_t>);
+    D.lowerbound(6)=0.1;
+    D.lowerbound(10)=0.1;
   }
 
   void get_D_N(Box &D) const {}
@@ -157,14 +159,14 @@ unsigned long int n_seed = 1;
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const { 
     alpaqa::ScopedMallocAllower ma;
     vec xu(params.nx+params.nu); xu << x, u;
-    fe(timestep, xu, fxu, params);
-    // rk4(timestep, xu, fxu, params);
+    // fe(timestep, xu, fxu, params);
+    rk4(timestep, xu, fxu, params);
   } 
   void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
-    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
+    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx>(Jfxu, ad_obj[timestep]);
   }
 
@@ -172,8 +174,8 @@ unsigned long int n_seed = 1;
                         rvec grad_fxu_p) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
-    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
+    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx> (grad_fxu_p, p, ad_obj[timestep]);
   }
 

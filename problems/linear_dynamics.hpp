@@ -192,7 +192,7 @@ void dynamics(index_t k, X &xu, F &fxu, const Params &params){
     }
 };
 
-const int p_N = 5, p_nx = 3, p_nu = 2, p_nh = 5;
+const int p_N = 16, p_nx = 3, p_nu = 2, p_nh = 5;
 
 using ADobj = AD<p_nx+p_nu,p_nx,p_nh>;
 

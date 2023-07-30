@@ -88,7 +88,6 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, real_t
     using std::chrono::duration_cast;
     using std::chrono::nanoseconds;
     auto start_time = std::chrono::steady_clock::now();
-
     // Check the problem dimensions etc.
     p.check();
 
@@ -104,7 +103,7 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, real_t
             .os                       = os,
             .check                    = false,
         };
-        auto ps              = inner_solver(p, opts, x, y, Σ, error, g, nt);
+        auto ps              = inner_solver(p, opts, x, y, Σ, error, nt);
         bool inner_converged = ps.status == SolverStatus::Converged;
         auto time_elapsed    = std::chrono::steady_clock::now() - start_time;
         s.inner_convergence_failures = not inner_converged;
@@ -123,7 +122,6 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, real_t
     vec Σ_old                        = vec::Constant(m, NaN);
     vec error_1                      = vec::Constant(m, NaN);
     vec error_2                      = vec::Constant(m, NaN);
-    vec g                            = vec::Constant(m, NaN);
     vec zeros                        = vec::Constant(m, 0.);
     [[maybe_unused]] real_t norm_e_1 = NaN;
     [[maybe_unused]] real_t norm_e_2 = NaN;
@@ -178,9 +176,9 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, real_t
         };
         // Call the inner solver to minimize the augmented lagrangian for fixed
         // Lagrange multipliers y.
-        auto ps = inner_solver(p, opts, x, y, Σ, error_2, g, nt);
+        auto ps = inner_solver(p, opts, x, y, Σ, error_2, nt);
         // Update lagrange multipliers
-        y += Σ.asDiagonal() * g;
+        y += Σ.asDiagonal() * error_2;
         // Check if the inner solver converged
         bool inner_converged = ps.status == SolverStatus::Converged;
         // Accumulate the inner solver statistics
@@ -202,9 +200,8 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, real_t
             *os << "[\x1b[0;34mALM\x1b[0m]   " << std::setw(5) << i
                 << ": ‖Σ‖ = " << print_real(Σ.norm())
                 << ", ‖y‖ = " << print_real(y.norm())
-                << ", ‖g‖ = " << print_real(vec_util::norm_inf(g))
                 << ", δ = " << print_real(δ) << ", ε = " << print_real(ps.ε)
-                << ", Δ = " << print_real(Δ) << ", status = " << color
+                << ", Δ = " << print_real(Δ) << ", status = " << color 
                 << std::setw(13) << ps.status << color_end
                 << ", iter = " << ps.iterations << std::endl; // Flush for Python buffering
         }
@@ -246,11 +243,12 @@ ParaALMSolver<InnerSolverT>::operator()(const Problem &p, rvec x, rvec y, real_t
 
         // If the inner solver did converge, increase penalty
         else {
+            // Check the termination criteria
+            real_t continuity = vec_util::norm_inf(error_2); // continuity of PDEs between stages
+            
             error_2.swap(error_1);
             norm_e_2 = std::exchange(norm_e_1, vec_util::norm_inf(error_1));
-
-            // Check the termination criteria
-            real_t continuity = vec_util::norm_inf(g); // continuity of PDEs between stages
+            
             bool alm_converged =
                 ((ps.ε <= params.tolerance && inner_converged && norm_e_1 <= params.dual_tolerance));
             bool exit = alm_converged || out_of_iter || out_of_time;

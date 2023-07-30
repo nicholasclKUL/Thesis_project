@@ -1,0 +1,2 @@
+number_of_threads,horizon,number_of_states,status,inner_iterations,outer_iterations,ε,δ,elapsed_time,avg τ,L_BFGS_rejected,L_BFGS_failures,Line_search_failures,
+4,30,9,MaxTime,205607,69,1.83843e+06,0.0142069,1800.1,0.879111,15859,0,20013,

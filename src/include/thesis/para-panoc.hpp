@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
+#include <chrono>
 
 namespace alpaqa {
 
@@ -39,13 +40,12 @@ class ParaPANOCSolver {
                      rvec xu_init,              // inout
                      rvec y,                    // in
                      crvec μ,                   // in
-                     rvec err_z,                // out
-                     rvec g,                    // out
+                     rvec err_z,                // out            
                      index_t nthrds);
     template <class P>
     Stats operator()(const P &problem, const SolveOptions &opts, rvec xu_init, rvec y,
-                     crvec μ, rvec e, rvec g, index_t nthrds) {
-        return operator()(Problem::template make<P>(problem), opts, xu_init, y, μ, e, g, nthrds);
+                     crvec μ, rvec e, index_t nthrds) {
+        return operator()(Problem::template make<P>(problem), opts, xu_init, y, μ, e, nthrds);
     }
 
     /// Specify a callable that is invoked with some intermediate results on
@@ -94,8 +94,6 @@ auto ParaPANOCSolver<Conf>::operator()(
     crvec μ,
     /// [out]   Slack variable error @f$ c(x) - \Pi_D(c(x) + \mu^{-1} y) @f$
     rvec err_z, 
-    /// [out]   Continuity, f(x,u) - x+
-    rvec g,
     /// [in]    Number of threads
     index_t nthrds) -> Stats {
 
@@ -497,7 +495,6 @@ auto ParaPANOCSolver<Conf>::operator()(
                 stop_status == SolverStatus::Interrupted ||
                 opts.always_overwrite_results) {
                     err_z = curr->g - curr->Π_D;
-                    g = curr->g;
             }
             s.iterations   = k;
             s.ε            = εₖ;
@@ -527,7 +524,6 @@ auto ParaPANOCSolver<Conf>::operator()(
             });
             Kokkos::fence();
             fill_sp(curr->spGN,curr->GN);
-            // std::cout<<curr->GN<<std::endl;
             sp_lu.analyzePattern(curr->spGN);
             sp_lu.factorize(curr->spGN);
             q = - sp_lu.solve(curr->grad_ψ);
@@ -679,7 +675,6 @@ auto ParaPANOCSolver<Conf>::operator()(
         // Advance step --------------------------------------------------------
         std::swap(curr, next);
         xu = curr->xu;
-        g = curr->g;
     }
     throw std::logic_error("[PANOC] loop error");
 }

@@ -60,12 +60,12 @@ int main() {
     params.quadratic_upperbound_tolerance_factor = 1e-03;
     auto tol = 1e-4;
     
-    // Solve MS-Parallel (Gauss-Newton)
+    // Solve SS
     params.gn_interval = 1;
     alpaqa::ParaPANOCSolver<config_t> solver_ms_gn{params};
     auto stats_ms_gn = solver_ms_gn(problem, {.tolerance = tol}, xu, y_ms, μ_ms, e_ms, g_ms, nt);
 
-    // Solve MS-Parallel (L-BFGS)
+    // Solve MS-Parallel
     problem.get_x_init(xu);
     params.gn_interval = 0;
     alpaqa::ParaPANOCSolver<config_t> solver_ms_lbfgs{params};

@@ -3,7 +3,7 @@
 problems=("NonlinearOCP1b" "QuadcopterAD" "QuadcopterFull" "HangingChain" "MultiRTAC" "Nagumo")
 
 # Define path to .csv file
-path_to_output="${HOME}/Thesis_project/benchmarking_time/"
+path_to_output="${HOME}/Thesis_project/benchmarking_time_GN/"
 
 # Define path to profiling tool command
 path_to_profiling_tool="${HOME}/kokkos-tools/profiling/simple-kernel-timer/kp_reader"
@@ -23,7 +23,7 @@ for p in "${problems[@]}"; do
     problem_data[$p]=""
 
     # Go to the built application directory
-    cd "${HOME}/Thesis_project/benchmarking_time/$p"
+    cd "${HOME}/Thesis_project/benchmarking_time_GN/$p"
 
     # Loop through .dat files starting with "filename"
     for file in nicholas-Inspiron-5567-*.dat; do

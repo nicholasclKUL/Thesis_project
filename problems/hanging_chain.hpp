@@ -69,7 +69,7 @@ void dynamics(index_t &k, X &xu, J &fxu, const Params &params){
 }; 
 
 // Horizon length, number of states and input for compile time allocation of AD views
-const int p_N = 30,
+const int p_N = 16,
           p_Nb = 3,
           p_dim = 3,
           p_nx = ((p_Nb - 1) * p_dim * 2) - p_dim, //< ((N_balls - 1) * dim * 2) - dim
@@ -203,14 +203,14 @@ unsigned long int n_seed = 1;
   void eval_f(index_t timestep, crvec x, crvec u, rvec fxu) const { 
     alpaqa::ScopedMallocAllower ma;
     vec xu(params.nx+params.nu); xu << x, u;
-    fe(timestep, xu, fxu, params);
-    // rk4(timestep, xu, fxu, params);
+    // fe(timestep, xu, fxu, params);
+    rk4(timestep, xu, fxu, params);
   } 
   void eval_jac_f(index_t timestep, crvec x, crvec u, rmat Jfxu) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
-    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
+    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx>(Jfxu, ad_obj[timestep]);
   }
 
@@ -218,8 +218,8 @@ unsigned long int n_seed = 1;
                         rvec grad_fxu_p) const {
     alpaqa::ScopedMallocAllower ma;
     assign_values_xu<p_nx+p_nu,p_nx>(x, u, ad_obj[timestep]);
-    fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
-    // rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
+    // fe(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params);
+    rk4(timestep, ad_obj[timestep].xu_fad, ad_obj[timestep].fxu_fad, params, p_nx+p_nu, p_nx);
     assign_values<p_nx+p_nu,p_nx> (grad_fxu_p, p, ad_obj[timestep]);
   }
 

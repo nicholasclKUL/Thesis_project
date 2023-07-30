@@ -162,7 +162,7 @@ void dynamics(index_t k, X &xu, F &fxu, const Params &params){
   }
 };
 
-const int p_N = 30, p_nx = 20, p_nu = 1, p_nh = 21;
+const int p_N = 16, p_nx = 20, p_nu = 1, p_nh = 21;
 
 using ADobj = AD<p_nx+p_nu,p_nx,p_nh>;
 
@@ -186,7 +186,7 @@ struct NonlinearOCP1b {
     
     };
 
-unsigned long int n_seed = 1;
+unsigned long int n_seed = 11;
 
     vec Q, R, QR; 
 
